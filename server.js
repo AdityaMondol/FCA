@@ -44,7 +44,17 @@ supabase
   });
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: [
+    'http://localhost:5173', // Vite dev server
+    'http://localhost:3000', // Local backend
+    'https://farid-cadet-academy.netlify.app', // Your Netlify domain (update this)
+    /\.netlify\.app$/ // Allow any Netlify subdomain
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -54,8 +64,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from Svelte build
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+// Serve static files from Svelte build (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(express.static(path.join(__dirname, 'frontend/dist')));
+}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -848,12 +860,23 @@ app.get('/api/contacts', authenticateToken, async (req, res) => {
   }
 });
 
-// ============= SERVE FRONTEND =============
+// ============= SERVE FRONTEND (Development Only) =============
 
-// Serve frontend for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
-});
+// Serve frontend for all other routes (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
+  });
+} else {
+  // In production, just return API info for unknown routes
+  app.get('*', (req, res) => {
+    res.json({ 
+      message: 'Farid Cadet Academy API Server', 
+      version: '1.0.0',
+      frontend: 'Deployed separately on Netlify'
+    });
+  });
+}
 
 // Start server
 app.listen(PORT, () => {
