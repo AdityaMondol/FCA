@@ -1,5 +1,7 @@
 <script>
   import { Router, Route } from 'svelte-routing';
+  import { onMount } from 'svelte';
+  import { supabase } from './stores/authStore';
   import Navbar from './components/Navbar.svelte';
   import Footer from './components/Footer.svelte';
   import Home from './pages/Home.svelte';
@@ -15,6 +17,32 @@
   import Dashboard from './pages/Dashboard.svelte';
 
   export let url = "";
+
+  // Handle auth callback from email verification
+  onMount(async () => {
+    // Check if this is an auth callback (email verification redirect)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    
+    if (accessToken && refreshToken) {
+      console.log('✅ Email verification successful! Setting up session...');
+      
+      // Set the session from URL hash
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      
+      if (error) {
+        console.error('Error setting session:', error);
+      } else {
+        console.log('✅ Session established! User logged in.');
+        // Clean up URL hash
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  });
 </script>
 
 <Router {url}>

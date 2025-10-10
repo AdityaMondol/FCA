@@ -3,14 +3,26 @@ import { createClient } from '@supabase/supabase-js';
 import { API_URL } from '../config';
 
 // Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'placeholder-key';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_KEY) {
-  console.warn('⚠️ Supabase credentials not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY in Netlify environment variables.');
+// Debug logging
+console.log('🔧 Supabase Configuration:', {
+  url: supabaseUrl ? '✅ Set' : '❌ Missing',
+  key: supabaseKey ? '✅ Set' : '❌ Missing',
+  apiUrl: import.meta.env.VITE_API_URL || 'Not set'
+});
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Supabase credentials not configured!');
+  console.error('Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY in Netlify environment variables.');
+  console.error('After adding variables, redeploy the site.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseKey || 'placeholder-key'
+);
 
 const getInitialAuth = async () => {
   // Check for existing session
