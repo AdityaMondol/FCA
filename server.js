@@ -101,16 +101,50 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     message: 'Farid Cadet Academy Backend is running!',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-    port: PORT
+    timestamp: new Date().toISOString()
   });
 });
 
-// Basic test route
+// Test endpoint
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'Backend is working!', timestamp: new Date().toISOString() });
+  res.json({ message: 'API is working!', timestamp: new Date().toISOString() });
+});
+
+// Test Supabase connection endpoint
+app.get('/api/test/supabase', async (req, res) => {
+  try {
+    // Test 1: Check if we can query users table
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('count');
+    
+    // Test 2: Check if we can query notices table
+    const { data: notices, error: noticesError } = await supabase
+      .from('notices')
+      .select('count');
+    
+    // Test 3: Check if we can query media table
+    const { data: media, error: mediaError } = await supabase
+      .from('media')
+      .select('count');
+
+    res.json({
+      success: true,
+      supabaseUrl: supabaseUrl.substring(0, 30) + '...',
+      tests: {
+        usersTable: usersError ? '❌ Error: ' + usersError.message : '✅ Connected',
+        noticesTable: noticesError ? '❌ Error: ' + noticesError.message : '✅ Connected',
+        mediaTable: mediaError ? '❌ Error: ' + mediaError.message : '✅ Connected'
+      },
+      note: 'This app uses custom JWT authentication, not Supabase Auth. No verification emails will be sent.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      note: 'Check your SUPABASE_URL and SUPABASE_KEY in .env file'
+    });
+  }
 });
 
 // Get academy information
