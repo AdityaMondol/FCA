@@ -47,21 +47,22 @@
   async function loadData() {
     try {
       // Load notices
-      const noticesResponse = await fetch('/api/notices');
+      const noticesResponse = await fetch(`${API_URL}/api/notices`);
       if (noticesResponse.ok) {
         notices = await noticesResponse.json();
       }
 
       // Load media
-      const mediaResponse = await fetch('/api/media');
+      const mediaResponse = await fetch(`${API_URL}/api/media`);
       if (mediaResponse.ok) {
         media = await mediaResponse.json();
       }
 
       // Load contacts (admin only)
-      const contactsResponse = await fetch('/api/contacts', {
+      const token = authState.session?.access_token;
+      const contactsResponse = await fetch(`${API_URL}/api/contacts`, {
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
       if (contactsResponse.ok) {
@@ -76,11 +77,12 @@
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/notices', {
+      const token = authState.session?.access_token;
+      const response = await fetch(`${API_URL}/api/notices`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(noticeForm)
       });
@@ -98,10 +100,11 @@
     if (!confirm(t.deleteNotice || 'Delete this notice?')) return;
 
     try {
-      const response = await fetch(`/api/notices/${id}`, {
+      const token = authState.session?.access_token;
+      const response = await fetch(`${API_URL}/api/notices/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -128,10 +131,11 @@
     formData.append('description', mediaForm.description);
 
     try {
-      const response = await fetch('/api/media', {
+      const token = authState.session?.access_token;
+      const response = await fetch(`${API_URL}/api/media`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         },
         body: formData
       });
@@ -149,10 +153,11 @@
     if (!confirm(t.deleteMedia || 'Delete this media?')) return;
 
     try {
-      const response = await fetch(`/api/media/${id}`, {
+      const token = authState.session?.access_token;
+      const response = await fetch(`${API_URL}/api/media/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
 

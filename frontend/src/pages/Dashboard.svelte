@@ -48,14 +48,22 @@
 
   async function loadProfile() {
     try {
+      const token = authState.session?.access_token;
+      if (!token) {
+        console.error('No access token available');
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/profile`, {
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
       if (response.ok) {
         profileData = await response.json();
+      } else {
+        console.error('Failed to load profile:', response.status);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -76,10 +84,15 @@
         formData.append('profile_photo', profilePhotoFile);
       }
 
+      const token = authState.session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
       const response = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         },
         body: formData
       });
@@ -126,11 +139,18 @@
 
     isLoading = true;
     try {
+      const token = authState.session?.access_token;
+      if (!token) {
+        message = 'Not authenticated';
+        isLoading = false;
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/change-role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
           role: newRole,
@@ -174,10 +194,17 @@
 
     isLoading = true;
     try {
+      const token = authState.session?.access_token;
+      if (!token) {
+        message = 'Not authenticated';
+        isLoading = false;
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/delete-account`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
 

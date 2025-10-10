@@ -97,29 +97,27 @@ if (typeof window !== 'undefined') {
 
 export const login = async (email, password) => {
   try {
+    console.log('🔐 Attempting login...');
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
 
     if (error) {
+      console.error('❌ Login failed:', error.message);
       throw new Error(error.message);
     }
 
-    // Get user profile
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
-
-    // Auth store will be updated by onAuthStateChange listener
+    console.log('✅ Login successful!');
+    
+    // Auth store will be updated automatically by onAuthStateChange listener
+    // No need to fetch profile here - it will be fetched by the listener
     return { 
       success: true, 
       user: {
         id: data.user.id,
-        email: data.user.email,
-        ...userProfile
+        email: data.user.email
       }
     };
   } catch (error) {
