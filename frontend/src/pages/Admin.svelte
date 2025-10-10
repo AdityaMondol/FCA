@@ -3,6 +3,7 @@
   import { navigate } from 'svelte-routing';
   import { currentLanguage, translations } from '../stores/languageStore';
   import { auth, logout } from '../stores/authStore';
+  import { API_URL } from '../config';
 
   let t;
   $: t = translations[$currentLanguage];
@@ -46,20 +47,25 @@
 
   async function loadData() {
     try {
-      // Load notices
-      const noticesResponse = await fetch(`${API_URL}/api/notices`);
+      const token = authState.session?.access_token;
+
+      // Load notices (protected)
+      const noticesResponse = await fetch(`${API_URL}/api/notices`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (noticesResponse.ok) {
         notices = await noticesResponse.json();
       }
 
-      // Load media
+      // Load media (public)
       const mediaResponse = await fetch(`${API_URL}/api/media`);
       if (mediaResponse.ok) {
         media = await mediaResponse.json();
       }
 
       // Load contacts (admin only)
-      const token = authState.session?.access_token;
       const contactsResponse = await fetch(`${API_URL}/api/contacts`, {
         headers: {
           'Authorization': `Bearer ${token}`

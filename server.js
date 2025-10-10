@@ -363,7 +363,8 @@ app.post('/api/auth/register', async (req, res) => {
           verification_code_used: role === 'teacher' ? teacherCode : null
         }
       ], {
-        onConflict: 'id,email'
+        // Use a single unique column for conflict handling to match the DB constraint
+        onConflict: 'email'
       });
 
     if (profileError) {
@@ -763,11 +764,11 @@ app.get('/api/check-user/:email', async (req, res) => {
 
 // ============= PROTECTED ROUTES (Teacher only) =============
 
-// Create notice
+// Create notice (Admin only)
 app.post('/api/notices', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'teacher') {
-      return res.status(403).json({ error: 'Teacher access required' });
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
     }
 
     const { title_en, title_bn, content_en, content_bn, priority } = req.body;

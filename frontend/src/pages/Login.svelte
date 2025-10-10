@@ -24,15 +24,35 @@
       return;
     }
     
-    const result = await login(email, password);
-    isLoading = false;
-    
-    if (result.success) {
-      navigate('/');
-    } else {
-      error = result.error || ($currentLanguage === 'en' 
-        ? 'Login failed. Please check your credentials.' 
-        : 'লগইন ব্যর্থ হয়েছে। আপনার তথ্য চেক করুন।');
+    try {
+      // Add timeout to prevent infinite spinning
+      const loginPromise = login(email, password);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout')), 15000)
+      );
+      
+      const result = await Promise.race([loginPromise, timeoutPromise]);
+      
+      if (result.success) {
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          navigate('/');
+        }, 100);
+      } else {
+        error = result.error || ($currentLanguage === 'en' 
+          ? 'Login failed. Please check your credentials.' 
+          : 'লগইন ব্যর্থ হয়েছে। আপনার তথ্য চেক করুন।');
+      }
+    } catch (err) {
+      error = err.message === 'Login timeout' 
+        ? ($currentLanguage === 'en' 
+          ? 'Login is taking too long. Please check your internet connection.' 
+          : 'লগইন খুব বেশি সময় নিচ্ছে। আপনার ইন্টারনেট সংযোগ চেক করুন।')
+        : ($currentLanguage === 'en' 
+          ? 'An error occurred. Please try again.' 
+          : 'একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।');
+    } finally {
+      isLoading = false;
     }
   }
 </script>
