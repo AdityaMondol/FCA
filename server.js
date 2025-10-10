@@ -48,7 +48,7 @@ const corsOptions = {
   origin: [
     'http://localhost:5173', // Vite dev server
     'http://localhost:3000', // Local backend
-    'https://farid-cadet-academy.netlify.app', // Your Netlify domain (update this)
+    'https://farid-cadet.netlify.app', // Production frontend
     /\.netlify\.app$/ // Allow any Netlify subdomain
   ],
   credentials: true,
@@ -63,11 +63,6 @@ app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path} - ${new Date().toLocaleTimeString()}`);
   next();
 });
-
-// Serve static files from Svelte build (only in development)
-if (process.env.NODE_ENV !== 'production') {
-  app.use(express.static(path.join(__dirname, 'frontend/dist')));
-}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
