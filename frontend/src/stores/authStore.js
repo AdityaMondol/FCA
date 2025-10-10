@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { API_URL } from '../config';
 
 // Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'placeholder-key';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase credentials. Please check your .env file.');
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_KEY) {
+  console.warn('⚠️ Supabase credentials not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY in Netlify environment variables.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
