@@ -146,11 +146,12 @@
           </button>
         </form>
         
-        <div class="mt-6 text-center">
+        <div class="mt-6 text-center border-t border-gray-200 dark:border-gray-700 pt-6">
           <p class="text-sm text-gray-600 dark:text-gray-400">
-            {$currentLanguage === 'en' 
-              ? 'Default credentials: admin@faridcadetacademy.com / admin123' 
-              : 'ডিফল্ট তথ্য: admin@faridcadetacademy.com / admin123'}
+            {$currentLanguage === 'en' ? "Don't have an account?" : 'কোন অ্যাকাউন্ট নেই?'}
+            <a href="/register" class="text-primary hover:text-primary-700 font-semibold ml-1">
+              {$currentLanguage === 'en' ? 'Register here' : 'এখানে নিবন্ধন করুন'}
+            </a>
           </p>
         </div>
       </div>

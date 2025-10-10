@@ -347,7 +347,9 @@ app.post('/api/auth/register', async (req, res) => {
           role,
           phone: phone || null
         },
-        emailRedirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`
+        emailRedirectTo: process.env.NODE_ENV === 'production' 
+          ? 'https://farid-cadet.netlify.app'
+          : 'http://localhost:5173'
       }
     });
 

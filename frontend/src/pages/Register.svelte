@@ -299,6 +299,15 @@
             {/if}
           </button>
         </form>
+
+        <div class="mt-6 text-center border-t border-gray-200 dark:border-gray-700 pt-6">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            {$currentLanguage === 'en' ? 'Already have an account?' : 'ইতিমধ্যে অ্যাকাউন্ট আছে?'}
+            <a href="/login" class="text-primary hover:text-primary-700 font-semibold ml-1">
+              {$currentLanguage === 'en' ? 'Login here' : 'এখানে লগইন করুন'}
+            </a>
+          </p>
+        </div>
       </div>
       
       <div class="mt-8 text-center">
