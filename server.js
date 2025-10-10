@@ -24,11 +24,14 @@ console.log('📂 Environment:', process.env.NODE_ENV || 'development');
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'your_supabase_url_here';
 const supabaseKey = process.env.SUPABASE_KEY || 'your_supabase_key_here';
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
 console.log('🔐 Supabase URL:', supabaseUrl.substring(0, 30) + '...');
 console.log('🔑 Supabase Key:', supabaseKey.substring(0, 20) + '...');
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+// Admin client with service role key - bypasses RLS for administrative operations
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Test database connection
 console.log('🔌 Testing database connection...');
@@ -647,8 +650,8 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     console.log(`🗑️ Starting account deletion for user ID: ${userId}`);
 
-    // First, verify the user exists
-    const { data: userExists, error: userCheckError } = await supabase
+    // First, verify the user exists using admin client
+    const { data: userExists, error: userCheckError } = await supabaseAdmin
       .from('users')
       .select('id, email, name')
       .eq('id', userId)
@@ -662,49 +665,59 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
     console.log(`📧 Deleting account for: ${userExists.email} (${userExists.name})`);
 
     // Delete user data in correct order (respecting foreign key constraints)
+    // Using admin client to bypass RLS policies
     
     // 1. Delete teacher profile if exists
     console.log('🔄 Deleting teacher profile...');
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseAdmin
       .from('teacher_profiles')
       .delete()
       .eq('user_id', userId);
     
     if (profileError) {
-      console.error('Teacher profile deletion error:', profileError);
-    } else {
-      console.log('✅ Teacher profile deleted (if existed)');
+      console.error('❌ Teacher profile deletion error:', profileError);
+      return res.status(500).json({ 
+        error: 'Failed to delete teacher profile', 
+        details: profileError.message 
+      });
     }
+    console.log('✅ Teacher profile deleted (if existed)');
 
     // 2. Delete notices created by user
     console.log('🔄 Deleting user notices...');
-    const { error: noticesError } = await supabase
+    const { error: noticesError } = await supabaseAdmin
       .from('notices')
       .delete()
       .eq('created_by', userId);
       
     if (noticesError) {
-      console.error('Notices deletion error:', noticesError);
-    } else {
-      console.log('✅ User notices deleted');
+      console.error('❌ Notices deletion error:', noticesError);
+      return res.status(500).json({ 
+        error: 'Failed to delete notices', 
+        details: noticesError.message 
+      });
     }
+    console.log('✅ User notices deleted');
 
     // 3. Delete media uploaded by user
     console.log('🔄 Deleting user media...');
-    const { error: mediaError } = await supabase
+    const { error: mediaError } = await supabaseAdmin
       .from('media')
       .delete()
       .eq('uploaded_by', userId);
       
     if (mediaError) {
-      console.error('Media deletion error:', mediaError);
-    } else {
-      console.log('✅ User media deleted');
+      console.error('❌ Media deletion error:', mediaError);
+      return res.status(500).json({ 
+        error: 'Failed to delete media', 
+        details: mediaError.message 
+      });
     }
+    console.log('✅ User media deleted');
 
     // 4. Finally delete the user
     console.log('🔄 Deleting user account...');
-    const { data: deletedUser, error: userDeleteError } = await supabase
+    const { data: deletedUser, error: userDeleteError } = await supabaseAdmin
       .from('users')
       .delete()
       .eq('id', userId)
