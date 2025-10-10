@@ -21,37 +21,78 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseKey || 'placeholder-key'
+  supabaseKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined
+    }
+  }
 );
 
 const getInitialAuth = async () => {
-  // Check for existing session
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (session && session.user) {
-    // Get user profile
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
+  try {
+    // Check for existing session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('❌ Session error:', sessionError);
+      return {
+        isAuthenticated: false,
+        session: null,
+        user: null
+      };
+    }
+    
+    if (session && session.user) {
+      // Get user profile
+      const { data: userProfile, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
 
-    return {
-      isAuthenticated: true,
-      session,
-      user: {
-        id: session.user.id,
-        email: session.user.email,
-        ...userProfile
+      if (profileError) {
+        console.warn('⚠️ Profile fetch failed:', profileError.message);
+        // Still authenticate even if profile fetch fails
+        return {
+          isAuthenticated: true,
+          session,
+          user: {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || 'User',
+            role: 'user'
+          }
+        };
       }
+
+      return {
+        isAuthenticated: true,
+        session,
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          ...userProfile
+        }
+      };
+    }
+    
+    return {
+      isAuthenticated: false,
+      session: null,
+      user: null
+    };
+  } catch (error) {
+    console.error('❌ Auth initialization error:', error);
+    return {
+      isAuthenticated: false,
+      session: null,
+      user: null
     };
   }
-  
-  return {
-    isAuthenticated: false,
-    session: null,
-    user: null
-  };
 };
 
 // Initialize auth store
@@ -65,26 +106,39 @@ export const auth = writable({
 if (typeof window !== 'undefined') {
   getInitialAuth().then(initialAuth => {
     auth.set(initialAuth);
+    console.log('🔐 Initial auth state:', initialAuth.isAuthenticated ? 'Logged in' : 'Logged out');
   });
 
   // Listen for auth state changes
   supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('🔄 Auth state changed:', event);
+    
     if (session && session.user) {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      // Only fetch profile if we don't have it or if it's a new session
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-      auth.set({
-        isAuthenticated: true,
-        session,
-        user: {
-          id: session.user.id,
-          email: session.user.email,
-          ...userProfile
-        }
-      });
+        auth.set({
+          isAuthenticated: true,
+          session,
+          user: {
+            id: session.user.id,
+            email: session.user.email,
+            ...userProfile
+          }
+        });
+      } else {
+        // Just update session without fetching profile again
+        auth.update(state => ({
+          ...state,
+          isAuthenticated: true,
+          session
+        }));
+      }
     } else {
       auth.set({
         isAuthenticated: false,
