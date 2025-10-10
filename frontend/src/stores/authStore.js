@@ -1,79 +1,129 @@
 import { writable } from 'svelte/store';
+import { createClient } from '@supabase/supabase-js';
 import { API_URL } from '../config';
 
-const getInitialAuth = () => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('authToken');
-    const user = localStorage.getItem('authUser');
-    
-    if (token && user) {
-      return {
-        isAuthenticated: true,
-        token,
-        user: JSON.parse(user)
-      };
-    }
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://husfemrigonousvtuyvf.supabase.co';
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1c2ZlbXJpZ29ub3Vzdlh1eXZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg1NDE3MDYsImV4cCI6MjA0NDExNzcwNn0.0NQW4pxvWLuv1gN8L-eeOWyWKOB2BNjEbvFJZs8H25I';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+const getInitialAuth = async () => {
+  // Check for existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (session && session.user) {
+    // Get user profile
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    return {
+      isAuthenticated: true,
+      session,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        ...userProfile
+      }
+    };
   }
   
   return {
     isAuthenticated: false,
-    token: null,
+    session: null,
     user: null
   };
 };
 
-export const auth = writable(getInitialAuth());
+// Initialize auth store
+export const auth = writable({
+  isAuthenticated: false,
+  session: null,
+  user: null
+});
+
+// Check for existing session on load
+if (typeof window !== 'undefined') {
+  getInitialAuth().then(initialAuth => {
+    auth.set(initialAuth);
+  });
+
+  // Listen for auth state changes
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session && session.user) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      auth.set({
+        isAuthenticated: true,
+        session,
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          ...userProfile
+        }
+      });
+    } else {
+      auth.set({
+        isAuthenticated: false,
+        session: null,
+        user: null
+      });
+    }
+  });
+}
 
 export const login = async (email, password) => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const data = await response.json();
-    
-    // Store in localStorage
-    localStorage.setItem('authToken', data.token);
-    localStorage.setItem('authUser', JSON.stringify(data.user));
-    
-    // Update store
-    auth.set({
-      isAuthenticated: true,
-      token: data.token,
-      user: data.user
-    });
-    
-    return { success: true, user: data.user };
+    // Get user profile
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    // Auth store will be updated by onAuthStateChange listener
+    return { 
+      success: true, 
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        ...userProfile
+      }
+    };
   } catch (error) {
     console.error('Login error:', error);
     return { success: false, error: error.message };
   }
 };
 
-export const logout = () => {
-  // Clear localStorage
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('authUser');
-  
-  // Update store
-  auth.set({
-    isAuthenticated: false,
-    token: null,
-    user: null
-  });
+export const logout = async () => {
+  try {
+    await supabase.auth.signOut();
+    // Auth store will be updated by onAuthStateChange listener
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
 };
 
 export const register = async (email, password, name, role = 'student', phone = '', teacherCode = '') => {
   try {
+    // Call backend API to validate and register
     const response = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: {
@@ -95,7 +145,11 @@ export const register = async (email, password, name, role = 'student', phone = 
     }
 
     const data = await response.json();
-    return { success: true, data };
+    return { 
+      success: true, 
+      message: data.message,
+      emailSent: data.emailSent
+    };
   } catch (error) {
     console.error('Registration error:', error);
     return { success: false, error: error.message };

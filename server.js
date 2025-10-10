@@ -70,28 +70,45 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Configure multer for file uploads
-const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// JWT middleware for authentication
-const authenticateToken = (req, res, next) => {
+// Supabase Auth middleware
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
+    return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
+  try {
+    // Verify Supabase JWT token
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    req.user = user;
+
+    // Get user profile with role
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    req.user = {
+      id: user.id,
+      email: user.email,
+      role: userProfile?.role || 'student',
+      ...userProfile
+    };
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({ error: 'Authentication failed' });
+  }
 };
 
 // ============= API ROUTES =============
@@ -248,7 +265,7 @@ app.post('/api/contact', async (req, res) => {
 
 // ============= AUTHENTICATION ROUTES =============
 
-// Login
+// Login (using Supabase Auth)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -257,34 +274,32 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const { data: users, error } = await supabase
+    // Use Supabase Auth to sign in
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (authError) {
+      return res.status(401).json({ error: authError.message });
+    }
+
+    // Get user profile from public.users table
+    const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('id', authData.user.id)
       .single();
 
-    if (error || !users) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const validPassword = await bcrypt.compare(password, users.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = jwt.sign(
-      { id: users.id, email: users.email, role: users.role },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
-
     res.json({
-      token,
+      session: authData.session,
       user: {
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        role: users.role
+        id: authData.user.id,
+        email: authData.user.email,
+        name: userProfile?.name || '',
+        role: userProfile?.role || 'student',
+        phone: userProfile?.phone,
+        profile_photo_url: userProfile?.profile_photo_url
       }
     });
   } catch (error) {
@@ -293,7 +308,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Register (public endpoint with role-based validation)
+// Register (using Supabase Auth with email verification)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, name, role, phone, teacherCode } = req.body;
@@ -321,57 +336,63 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('email')
-      .eq('email', email)
-      .single();
+    // Use Supabase Auth to create user (will send verification email)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role,
+          phone: phone || null
+        },
+        emailRedirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`
+      }
+    });
 
-    if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insert user into database
-    const { data, error } = await supabase
+    // Create user profile in public.users table
+    const { error: profileError } = await supabase
       .from('users')
       .insert([
         {
+          id: authData.user.id,
           email,
-          password: hashedPassword,
           name,
           role,
           phone: phone || null,
           verification_code_used: role === 'teacher' ? teacherCode : null
         }
-      ])
-      .select();
+      ]);
 
-    if (error) {
-      console.error('Database error:', error);
-      return res.status(400).json({ error: error.message });
+    if (profileError) {
+      console.error('Error creating user profile:', profileError);
     }
 
     // If teacher, create teacher profile entry
-    if (role === 'teacher' && data && data[0]) {
-      const { error: profileError } = await supabase
+    if (role === 'teacher') {
+      const { error: teacherProfileError } = await supabase
         .from('teacher_profiles')
         .insert([
           {
-            user_id: data[0].id,
+            user_id: authData.user.id,
             display_order: 0
           }
         ]);
 
-      if (profileError) {
-        console.error('Error creating teacher profile:', profileError);
+      if (teacherProfileError) {
+        console.error('Error creating teacher profile:', teacherProfileError);
       }
     }
 
-    res.json({ success: true, message: 'User registered successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Registration successful! Please check your email to verify your account.',
+      emailSent: true
+    });
   } catch (error) {
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Registration failed' });

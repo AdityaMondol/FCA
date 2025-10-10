@@ -81,21 +81,29 @@
     isLoading = false;
     
     if (result.success) {
-      success = $currentLanguage === 'en' 
-        ? 'User registered successfully!' 
-        : 'ব্যবহারকারী সফলভাবে নিবন্ধিত হয়েছে!';
+      if (result.emailSent) {
+        success = $currentLanguage === 'en' 
+          ? '✅ Registration successful! Please check your email to verify your account before logging in.' 
+          : '✅ নিবন্ধন সফল! লগইন করার আগে আপনার ইমেল যাচাই করুন।';
+      } else {
+        success = $currentLanguage === 'en' 
+          ? 'User registered successfully!' 
+          : 'ব্যবহারকারী সফলভাবে নিবন্ধিত হয়েছে!';
+      }
       
       // Clear form
       email = '';
       password = '';
       confirmPassword = '';
       name = '';
-      role = 'user';
+      phone = '';
+      role = 'student';
+      teacherCode = '';
       
-      // Redirect after 2 seconds
+      // Redirect to login after 5 seconds
       setTimeout(() => {
-        navigate('/');
-      }, 2000);
+        navigate('/login');
+      }, 5000);
     } else {
       error = result.error || ($currentLanguage === 'en' 
         ? 'Registration failed. Please try again.' 

@@ -21,9 +21,15 @@
     }
 
     try {
+      const token = authState.session?.access_token;
+      if (!token) {
+        isLoading = false;
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/notices`, {
         headers: {
-          'Authorization': `Bearer ${authState.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
       if (response.ok) {
