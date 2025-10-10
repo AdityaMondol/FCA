@@ -347,9 +347,7 @@ app.post('/api/auth/register', async (req, res) => {
           role,
           phone: phone || null
         },
-        emailRedirectTo: process.env.NODE_ENV === 'production' 
-          ? 'https://farid-cadet.netlify.app'
-          : 'http://localhost:5173'
+        emailRedirectTo: 'https://farid-cadet.netlify.app'
       }
     });
 
@@ -357,10 +355,10 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: authError.message });
     }
 
-    // Create user profile in public.users table
+    // Create or update user profile in public.users table (using upsert)
     const { error: profileError } = await supabase
       .from('users')
-      .insert([
+      .upsert([
         {
           id: authData.user.id,
           email,
@@ -369,10 +367,13 @@ app.post('/api/auth/register', async (req, res) => {
           phone: phone || null,
           verification_code_used: role === 'teacher' ? teacherCode : null
         }
-      ]);
+      ], {
+        onConflict: 'id,email'
+      });
 
     if (profileError) {
       console.error('Error creating user profile:', profileError);
+      // Don't fail registration if profile creation fails
     }
 
     // If teacher, create teacher profile entry

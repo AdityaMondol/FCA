@@ -3,8 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { API_URL } from '../config';
 
 // Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://husfemrigonousvtuyvf.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1c2ZlbXJpZ29ub3Vzdlh1eXZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg1NDE3MDYsImV4cCI6MjA0NDExNzcwNn0.0NQW4pxvWLuv1gN8L-eeOWyWKOB2BNjEbvFJZs8H25I';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing Supabase credentials. Please check your .env file.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
