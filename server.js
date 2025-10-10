@@ -715,29 +715,37 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
     }
     console.log('✅ User media deleted');
 
-    // 4. Finally delete the user
-    console.log('🔄 Deleting user account...');
-    const { data: deletedUser, error: userDeleteError } = await supabaseAdmin
+    // 4. Delete from custom users table
+    console.log('🔄 Deleting from users table...');
+    const { error: userDeleteError } = await supabaseAdmin
       .from('users')
       .delete()
-      .eq('id', userId)
-      .select();
+      .eq('id', userId);
 
     if (userDeleteError) {
-      console.error('❌ User deletion failed:', userDeleteError);
+      console.error('❌ User table deletion failed:', userDeleteError);
       return res.status(500).json({ 
-        error: 'Failed to delete user account', 
+        error: 'Failed to delete user from users table', 
         details: userDeleteError.message 
       });
     }
+    console.log('✅ User deleted from users table');
 
-    if (!deletedUser || deletedUser.length === 0) {
-      console.error('❌ User deletion returned no data - user may not have been deleted');
-      return res.status(500).json({ error: 'Account deletion failed - user still exists' });
+    // 5. CRITICAL: Delete from Supabase Auth (auth.users) - this is the main account
+    console.log('🔄 Deleting from Supabase Auth...');
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (authDeleteError) {
+      console.error('❌ Supabase Auth deletion failed:', authDeleteError);
+      return res.status(500).json({ 
+        error: 'Failed to delete authentication account', 
+        details: authDeleteError.message 
+      });
     }
+    console.log('✅ User deleted from Supabase Auth (auth.users)');
 
-    console.log('✅ User account successfully deleted:', deletedUser[0]);
-    res.json({ success: true, message: 'Account deleted successfully' });
+    console.log('✅✅✅ Account COMPLETELY deleted from all tables');
+    res.json({ success: true, message: 'Account permanently deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting account:', error);
     res.status(500).json({ error: 'Failed to delete account', details: error.message });
