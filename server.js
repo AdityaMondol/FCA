@@ -55,7 +55,7 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from Svelte build
-app.use(express.static(path.join(__dirname, 'frontend-svelte/dist')));
+app.use(express.static(path.join(__dirname, 'frontend/dist')));
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -852,7 +852,7 @@ app.get('/api/contacts', authenticateToken, async (req, res) => {
 
 // Serve frontend for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend-svelte/dist/index.html'));
+  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
 // Start server

@@ -1,6 +1,7 @@
 <script>
   import { currentLanguage, translations } from '../stores/languageStore';
   import { onMount } from 'svelte';
+  import { API_URL } from '../config';
   
   let t;
   $: t = translations[$currentLanguage];
@@ -14,7 +15,7 @@
 
   async function loadTeachers() {
     try {
-      const response = await fetch('/api/teachers');
+      const response = await fetch(`${API_URL}/api/teachers`);
       if (response.ok) {
         teachers = await response.json();
       } else {

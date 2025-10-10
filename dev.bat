@@ -13,10 +13,10 @@ if not exist "node_modules\" (
     echo.
 )
 
-REM Check if frontend-svelte/node_modules exists
-if not exist "frontend-svelte\node_modules\" (
+REM Check if frontend/node_modules exists
+if not exist "frontend\node_modules\" (
     echo Installing frontend dependencies...
-    cd frontend-svelte
+    cd frontend
     call npm install
     cd ..
     echo.
@@ -37,7 +37,7 @@ echo.
 REM Start both servers in new windows
 start "Backend Server" cmd /k "npm run dev"
 timeout /t 2 /nobreak >nul
-start "Frontend Dev Server" cmd /k "cd frontend-svelte && npm run dev"
+start "Frontend Dev Server" cmd /k "cd frontend && npm run dev"
 
 echo.
 echo Both development servers are starting in separate windows.

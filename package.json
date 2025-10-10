@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "frontend": "cd frontend-svelte && npm run dev",
-    "build": "cd frontend-svelte && npm run build",
-    "preview": "cd frontend-svelte && npm run preview"
+    "frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -16,10 +16,10 @@ if not exist "node_modules\" (
     echo.
 )
 
-REM Check if frontend-svelte/node_modules exists
-if not exist "frontend-svelte\node_modules\" (
+REM Check if frontend/node_modules exists
+if not exist "frontend\node_modules\" (
     echo [2/4] Installing frontend dependencies...
-    cd frontend-svelte
+    cd frontend
     call npm install
     cd ..
     echo.
@@ -30,7 +30,7 @@ if not exist "frontend-svelte\node_modules\" (
 
 REM Build frontend
 echo [3/4] Building frontend...
-cd frontend-svelte
+cd frontend
 call npm run build
 cd ..
 echo.

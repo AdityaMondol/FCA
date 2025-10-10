@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { API_URL } from '../config';
 
 const getInitialAuth = () => {
   if (typeof window !== 'undefined') {
@@ -25,7 +26,7 @@ export const auth = writable(getInitialAuth());
 
 export const login = async (email, password) => {
   try {
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,7 +74,7 @@ export const logout = () => {
 
 export const register = async (email, password, name, role = 'student', phone = '', teacherCode = '') => {
   try {
-    const response = await fetch('/api/auth/register', {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

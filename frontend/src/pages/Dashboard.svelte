@@ -3,6 +3,7 @@
   import { auth, logout } from '../stores/authStore';
   import { onMount } from 'svelte';
   import { navigate } from 'svelte-routing';
+  import { API_URL } from '../config';
   
   let t;
   $: t = translations[$currentLanguage];
@@ -47,7 +48,7 @@
 
   async function loadProfile() {
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetch(`${API_URL}/api/profile`, {
         headers: {
           'Authorization': `Bearer ${authState.token}`
         }
@@ -75,7 +76,7 @@
         formData.append('profile_photo', profilePhotoFile);
       }
 
-      const response = await fetch('/api/profile', {
+      const response = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${authState.token}`
@@ -125,7 +126,7 @@
 
     isLoading = true;
     try {
-      const response = await fetch('/api/change-role', {
+      const response = await fetch(`${API_URL}/api/change-role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +174,7 @@
 
     isLoading = true;
     try {
-      const response = await fetch('/api/delete-account', {
+      const response = await fetch(`${API_URL}/api/delete-account`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authState.token}`
