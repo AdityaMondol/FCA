@@ -108,7 +108,7 @@
                 {$currentLanguage === 'en' ? 'Office Hours' : 'অফিস সময়'}
               </h3>
               <p class="text-gray-600 dark:text-gray-300 text-sm">
-                {$currentLanguage === 'en' ? 'Saturday - Thursday: 8:00 AM - 8:00 PM' : 'শনিবার - বৃহস্পতিবার: সকাল ৮টা - রাত ৮টা'}
+                {$currentLanguage === 'en' ? 'Saturday - Friday ' : 'শনিবার - শুক্রবার'}
               </p>
               <p class="text-gray-600 dark:text-gray-300 text-sm">
                 {$currentLanguage === 'en' ? 'Friday: Closed' : 'শুক্রবার: বন্ধ'}
