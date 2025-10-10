@@ -39,9 +39,20 @@
           navigate('/');
         }, 100);
       } else {
-        error = result.error || ($currentLanguage === 'en' 
-          ? 'Login failed. Please check your credentials.' 
-          : 'লগইন ব্যর্থ হয়েছে। আপনার তথ্য চেক করুন।');
+        // Enhanced error messages based on error type
+        if (result.error.includes('Invalid login credentials')) {
+          error = $currentLanguage === 'en' 
+            ? 'Invalid email or password. Please check your credentials.' 
+            : 'অবৈধ ইমেইল বা পাসওয়ার্ড। আপনার তথ্য চেক করুন।';
+        } else if (result.error.includes('Email not confirmed')) {
+          error = $currentLanguage === 'en' 
+            ? 'Please verify your email address before logging in.' 
+            : 'লগইন করার আগে আপনার ইমেইল ঠিকানা যাচাই করুন।';
+        } else {
+          error = result.error || ($currentLanguage === 'en' 
+            ? 'Login failed. Please check your credentials.' 
+            : 'লগইন ব্যর্থ হয়েছে। আপনার তথ্য চেক করুন।');
+        }
       }
     } catch (err) {
       error = err.message === 'Login timeout' 
@@ -57,25 +68,16 @@
   }
 </script>
 
-<!-- Page Header -->
-<section class="gradient-bg text-white py-12">
-  <div class="container mx-auto px-4 text-center">
-    <h1 class="text-2xl md:text-3xl font-bold mb-3 animate-fade-in">
-      {$currentLanguage === 'en' ? 'Admin Login' : 'অ্যাডমিন লগইন'}
-    </h1>
-    <p class="text-base max-w-3xl mx-auto animate-fade-in">
-      {$currentLanguage === 'en' 
-        ? 'Access the admin dashboard' 
-        : 'অ্যাডমিন ড্যাশবোর্ড অ্যাক্সেস করুন'}
-    </p>
-  </div>
-</section>
-
 <!-- Login Form -->
-<section class="py-12 bg-white dark:bg-gray-900 min-h-screen">
+<section class="relative py-12 bg-gradient-to-b from-white via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 min-h-screen overflow-hidden">
+  <!-- Decorative background shapes -->
+  <div class="pointer-events-none absolute inset-0 opacity-60 dark:opacity-30">
+    <div class="absolute -top-24 -right-24 w-72 h-72 bg-primary/20 dark:bg-primary/10 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 -left-24 w-80 h-80 bg-secondary/20 dark:bg-secondary/10 rounded-full blur-3xl"></div>
+  </div>
   <div class="container mx-auto px-4">
     <div class="max-w-md mx-auto">
-      <div class="card">
+      <div class="card backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl transition-all duration-300">
         <div class="text-center mb-8">
           <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-3">
             <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,7 +103,7 @@
           </div>
         {/if}
         
-        <form on:submit={handleSubmit} class="space-y-6">
+        <form on:submit={handleSubmit} class="space-y-6 animate-fade-in">
           <div>
             <label for="email" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               {$currentLanguage === 'en' ? 'Email Address' : 'ইমেইল ঠিকানা'}
@@ -118,8 +120,8 @@
                 bind:value={email}
                 required
                 disabled={isLoading}
-                class="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
-                placeholder={$currentLanguage === 'en' ? 'admin@faridcadetacademy.com' : 'admin@faridcadetacademy.com'}
+                class="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
+                placeholder={$currentLanguage === 'en' ? 'your@email.com' : 'আপনার@ইমেইল.com'}
               />
             </div>
           </div>
@@ -140,16 +142,35 @@
                 bind:value={password}
                 required
                 disabled={isLoading}
-                class="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+                class="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
                 placeholder="••••••••"
               />
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <input
+                id="remember-me"
+                type="checkbox"
+                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              />
+              <label for="remember-me" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                {$currentLanguage === 'en' ? 'Remember me' : 'আমাকে মনে রাখুন'}
+              </label>
+            </div>
+            
+            <div class="text-sm">
+              <a href="/forgot-password" class="font-medium text-primary hover:text-primary-700">
+                {$currentLanguage === 'en' ? 'Forgot your password?' : 'পাসওয়ার্ড ভুলে গেছেন?'}
+              </a>
             </div>
           </div>
           
           <button
             type="submit"
             disabled={isLoading}
-            class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
           >
             {#if isLoading}
               <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -165,6 +186,36 @@
             {/if}
           </button>
         </form>
+        
+        <div class="mt-6">
+          <div class="relative">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span class="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                {$currentLanguage === 'en' ? 'Or continue with' : 'অথবা চালিয়ে যান'}
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-2 gap-3">
+            <div>
+              <button type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.09.682-.218.682-.485 0-.236-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.157-1.11-1.465-1.11-1.465-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.089 2.91.833.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.026 2.747-1.026.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.16 22 16.416 22 12c0-5.523-4.477-10-10-10z"/>
+                </svg>
+              </button>
+            </div>
+            <div>
+              <button type="button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M22.675 0H1.325C.593 0 0 .593 0 1.325v21.351C0 23.407.593 24 1.325 24H12.82v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.795.715-1.795 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116c.73 0 1.323-.593 1.323-1.325V1.325C24 .593 23.407 0 22.675 0z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
         
         <div class="mt-6 text-center border-t border-gray-200 dark:border-gray-700 pt-6">
           <p class="text-sm text-gray-600 dark:text-gray-400">

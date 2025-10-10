@@ -130,12 +130,13 @@
   async function changeRole() {
     if (!newRole) return;
     
-    if (newRole === 'teacher' && teacherVerificationCode !== 'FCA2025') {
-      message = $currentLanguage === 'en' 
-        ? 'Invalid teacher verification code' 
-        : 'অবৈধ শিক্ষক যাচাই কোড';
-      return;
-    }
+    // Remove the hardcoded teacher code validation - let backend handle it
+    // if (newRole === 'teacher' && teacherVerificationCode !== 'FCA2025') {
+    //   message = $currentLanguage === 'en' 
+    //     ? 'Invalid teacher verification code' 
+    //     : 'অবৈধ শিক্ষক যাচাই কোড';
+    //   return;
+    // }
 
     isLoading = true;
     try {
@@ -244,7 +245,12 @@
 </section>
 
 <!-- Dashboard Content -->
-<section class="py-12 bg-white dark:bg-gray-900 min-h-screen">
+<section class="relative py-12 bg-gradient-to-b from-white via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 min-h-screen overflow-hidden">
+  <!-- Decorative background shapes -->
+  <div class="pointer-events-none absolute inset-0 opacity-60 dark:opacity-30">
+    <div class="absolute -top-24 left-1/3 w-72 h-72 bg-primary/20 dark:bg-primary/10 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 right-1/3 w-80 h-80 bg-secondary/20 dark:bg-secondary/10 rounded-full blur-3xl"></div>
+  </div>
   <div class="container mx-auto px-4">
     <div class="max-w-4xl mx-auto">
       
@@ -258,12 +264,12 @@
         
         <!-- Profile Photo & Basic Info -->
         <div class="lg:col-span-1">
-          <div class="card text-center">
+          <div class="card text-center backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl">
             <div class="mb-4">
               {#if profileData.profile_photo_url}
                 <img src={profileData.profile_photo_url} alt="Profile" class="w-32 h-32 rounded-full mx-auto object-cover">
               {:else}
-                <div class="w-32 h-32 bg-gradient-to-br from-primary to-secondary rounded-full mx-auto flex items-center justify-center">
+                <div class="w-32 h-32 bg-gradient-to-br from-primary to-secondary rounded-full mx-auto flex items-center justify-center shadow-lg">
                   <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
@@ -276,13 +282,23 @@
             {#if profileData.phone}
               <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">{profileData.phone}</p>
             {/if}
+            
+            <div class="mb-4">
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary/10 text-primary dark:bg-primary/20">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {profileData.role || authState.user?.role}
+              </span>
+            </div>
 
             {#if isEditing}
               <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="profile-photo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Profile Photo' : 'প্রোফাইল ছবি'}
                 </label>
                 <input 
+                  id="profile-photo"
                   type="file" 
                   accept="image/*" 
                   on:change={handlePhotoChange}
@@ -293,7 +309,7 @@
 
             <button 
               on:click={() => isEditing = !isEditing}
-              class="btn-primary w-full"
+              class="btn-primary w-full shadow-md hover:shadow-lg transition-shadow"
             >
               {isEditing 
                 ? ($currentLanguage === 'en' ? 'Cancel' : 'বাতিল') 
@@ -304,7 +320,7 @@
 
         <!-- Profile Details Form -->
         <div class="lg:col-span-2">
-          <div class="card">
+          <div class="card backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
               {$currentLanguage === 'en' ? 'Profile Information' : 'প্রোফাইল তথ্য'}
             </h3>
@@ -313,10 +329,11 @@
               
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label for="full-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {$currentLanguage === 'en' ? 'Full Name' : 'পূর্ণ নাম'}
                   </label>
                   <input
+                    id="full-name"
                     type="text"
                     bind:value={profileData.name}
                     disabled={!isEditing}
@@ -325,10 +342,11 @@
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {$currentLanguage === 'en' ? 'Phone' : 'ফোন'}
                   </label>
                   <input
+                    id="phone"
                     type="tel"
                     bind:value={profileData.phone}
                     disabled={!isEditing}
@@ -338,10 +356,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="subject-specialization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Subject Specialization' : 'বিষয় বিশেষজ্ঞতা'}
                 </label>
                 <input
+                  id="subject-specialization"
                   type="text"
                   bind:value={profileData.subject_specialization}
                   disabled={!isEditing}
@@ -351,10 +370,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="experience-years" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Years of Experience' : 'অভিজ্ঞতার বছর'}
                 </label>
                 <input
+                  id="experience-years"
                   type="number"
                   bind:value={profileData.experience_years}
                   disabled={!isEditing}
@@ -365,10 +385,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="professional-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Professional Description' : 'পেশাদার বিবরণ'}
                 </label>
                 <textarea
+                  id="professional-description"
                   bind:value={profileData.description}
                   disabled={!isEditing}
                   rows="3"
@@ -378,10 +399,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="education-background" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Education Background' : 'শিক্ষাগত যোগ্যতা'}
                 </label>
                 <textarea
+                  id="education-background"
                   bind:value={profileData.education_background}
                   disabled={!isEditing}
                   rows="2"
@@ -391,10 +413,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="achievements" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Achievements & Awards' : 'অর্জন ও পুরস্কার'}
                 </label>
                 <textarea
+                  id="achievements"
                   bind:value={profileData.achievements}
                   disabled={!isEditing}
                   rows="2"
@@ -408,7 +431,7 @@
                   <button
                     type="submit"
                     disabled={isLoading}
-                    class="btn-primary flex-1 disabled:opacity-50"
+                    class="btn-primary flex-1 disabled:opacity-50 shadow-md hover:shadow-lg transition-shadow"
                   >
                     {isLoading 
                       ? ($currentLanguage === 'en' ? 'Saving...' : 'সংরক্ষণ হচ্ছে...') 
@@ -417,7 +440,7 @@
                   <button
                     type="button"
                     on:click={() => { isEditing = false; loadProfile(); }}
-                    class="btn-secondary flex-1"
+                    class="btn-secondary flex-1 shadow-sm"
                   >
                     {$currentLanguage === 'en' ? 'Cancel' : 'বাতিল'}
                   </button>
@@ -433,7 +456,7 @@
       <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <!-- Role Management -->
-        <div class="card">
+        <div class="card backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <svg class="w-6 h-6 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -459,7 +482,7 @@
         </div>
 
         <!-- Danger Zone -->
-        <div class="card border-red-200 dark:border-red-800">
+        <div class="card border-red-200 dark:border-red-800 backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl">
           <h3 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-4 flex items-center">
             <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -475,7 +498,7 @@
           
           <button 
             on:click={() => showDeleteModal = true}
-            class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300 w-full font-medium"
+            class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300 w-full font-medium shadow-md hover:shadow-lg"
           >
             {$currentLanguage === 'en' ? 'Delete Account' : 'অ্যাকাউন্ট মুছে ফেলুন'}
           </button>
@@ -495,10 +518,11 @@
       
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="new-role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {$currentLanguage === 'en' ? 'Select New Role' : 'নতুন ভূমিকা নির্বাচন করুন'}
           </label>
           <select 
+            id="new-role"
             bind:value={newRole}
             class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
           >
@@ -511,10 +535,11 @@
 
         {#if newRole === 'teacher'}
           <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="teacher-verification-code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {$currentLanguage === 'en' ? 'Teacher Verification Code' : 'শিক্ষক যাচাই কোড'}
             </label>
             <input
+              id="teacher-verification-code"
               type="text"
               bind:value={teacherVerificationCode}
               placeholder={$currentLanguage === 'en' ? 'Enter teacher code' : 'শিক্ষক কোড লিখুন'}
@@ -563,12 +588,13 @@
       </p>
       
       <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800 mb-4">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label for="delete-confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {$currentLanguage === 'en' 
             ? 'Type "DELETE" to confirm:' 
             : 'নিশ্চিত করতে "DELETE" টাইপ করুন:'}
         </label>
         <input
+          id="delete-confirm"
           type="text"
           bind:value={deleteConfirmText}
           placeholder="DELETE"

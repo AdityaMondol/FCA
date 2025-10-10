@@ -13,6 +13,9 @@
   import Contact from './pages/Contact.svelte';
   import Login from './pages/Login.svelte';
   import Register from './pages/Register.svelte';
+  import RegistrationSuccess from './pages/RegistrationSuccess.svelte';
+  import ForgotPassword from './pages/ForgotPassword.svelte';
+  import ResetPassword from './pages/ResetPassword.svelte';
   import Admin from './pages/Admin.svelte';
   import Dashboard from './pages/Dashboard.svelte';
 
@@ -24,9 +27,10 @@
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const accessToken = hashParams.get('access_token');
     const refreshToken = hashParams.get('refresh_token');
+    const type = hashParams.get('type');
     
     if (accessToken && refreshToken) {
-      console.log('✅ Email verification successful! Setting up session...');
+      console.log('✅ Email verification/password reset successful! Setting up session...');
       
       // Set the session from URL hash
       const { data, error } = await supabase.auth.setSession({
@@ -59,6 +63,9 @@
       <Route path="/contact" component={Contact} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/registration-success" component={RegistrationSuccess} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/admin" component={Admin} />
       <Route path="/dashboard" component={Dashboard} />
     </main>

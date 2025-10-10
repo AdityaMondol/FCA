@@ -6,6 +6,7 @@ const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables
 dotenv.config();
@@ -24,14 +25,21 @@ console.log('📂 Environment:', process.env.NODE_ENV || 'development');
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'your_supabase_url_here';
 const supabaseKey = process.env.SUPABASE_KEY || 'your_supabase_key_here';
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // MUST be service role key
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 console.log('🔐 Supabase URL:', supabaseUrl.substring(0, 30) + '...');
 console.log('🔑 Supabase Key:', supabaseKey.substring(0, 20) + '...');
+console.log('🧭 Frontend URL:', FRONTEND_URL);
+if (!supabaseServiceRoleKey) {
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is NOT set. Admin operations (like delete account) will fail.');
+} else if (supabaseServiceRoleKey === supabaseKey) {
+  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY appears to be the anon key. Please set the Service Role key for admin operations.');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 // Admin client with service role key - bypasses RLS for administrative operations
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey) : null;
 
 // Test database connection
 console.log('🔌 Testing database connection...');
@@ -52,6 +60,7 @@ const corsOptions = {
     'http://localhost:5173', // Vite dev server
     'http://localhost:3000', // Local backend
     'https://farid-cadet.netlify.app', // Production frontend
+    FRONTEND_URL,
     /\.netlify\.app$/ // Allow any Netlify subdomain
   ],
   credentials: true,
@@ -66,6 +75,35 @@ app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path} - ${new Date().toLocaleTimeString()}`);
   next();
 });
+
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: {
+    error: 'Too many authentication attempts, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to auth endpoints
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// Rate limiting for role change endpoint
+const roleChangeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // limit each IP to 3 requests per windowMs
+  message: {
+    error: 'Too many role change attempts, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to role change endpoint
+app.use('/api/change-role', roleChangeLimiter);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -109,6 +147,43 @@ const authenticateToken = async (req, res, next) => {
     return res.status(403).json({ error: 'Authentication failed' });
   }
 };
+
+// Input validation middleware
+const validateInput = (req, res, next) => {
+  // Check for potentially malicious input
+  const maliciousPatterns = [
+    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, // Script tags
+    /javascript:/gi, // JavaScript URLs
+    /on\w+\s*=/gi, // Event handlers
+    /data:/gi, // Data URLs
+  ];
+  
+  const checkObject = (obj) => {
+    if (typeof obj === 'string') {
+      for (const pattern of maliciousPatterns) {
+        if (pattern.test(obj)) {
+          return false;
+        }
+      }
+    } else if (typeof obj === 'object' && obj !== null) {
+      for (const key in obj) {
+        if (!checkObject(obj[key])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+  
+  if (!checkObject(req.body) || !checkObject(req.query) || !checkObject(req.params)) {
+    return res.status(400).json({ error: 'Invalid input detected' });
+  }
+  
+  next();
+};
+
+// Apply input validation to all routes
+app.use(validateInput);
 
 // ============= API ROUTES =============
 
@@ -280,7 +355,14 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
     if (authError) {
-      return res.status(401).json({ error: authError.message });
+      // Provide more specific error messages
+      if (authError.message.includes('Invalid login credentials')) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      } else if (authError.message.includes('Email not confirmed')) {
+        return res.status(401).json({ error: 'Please verify your email address before logging in' });
+      } else {
+        return res.status(401).json({ error: authError.message });
+      }
     }
 
     // Get user profile from public.users table
@@ -303,7 +385,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Error logging in:', error);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Login failed. Please try again later.' });
   }
 });
 
@@ -331,7 +413,12 @@ app.post('/api/auth/register', async (req, res) => {
         .single();
 
       if (codeError || !codeData) {
-        return res.status(400).json({ error: 'Invalid teacher verification code' });
+        return res.status(400).json({ error: 'Invalid teacher verification code. Please contact the school administration.' });
+      }
+      
+      // Check if code has usage limit and if it's exceeded
+      if (codeData.max_usage && codeData.usage_count >= codeData.max_usage) {
+        return res.status(400).json({ error: 'Teacher verification code has expired. Please contact the school administration for a new code.' });
       }
     }
 
@@ -345,12 +432,17 @@ app.post('/api/auth/register', async (req, res) => {
           role,
           phone: phone || null
         },
-        emailRedirectTo: 'https://farid-cadet.netlify.app'
+        emailRedirectTo: FRONTEND_URL
       }
     });
 
     if (authError) {
-      return res.status(400).json({ error: authError.message });
+      // Provide more specific error messages
+      if (authError.message.includes('already been registered')) {
+        return res.status(400).json({ error: 'This email is already registered. Please use a different email or login.' });
+      } else {
+        return res.status(400).json({ error: authError.message });
+      }
     }
 
     // Create or update user profile in public.users table (using upsert)
@@ -375,7 +467,7 @@ app.post('/api/auth/register', async (req, res) => {
       // Don't fail registration if profile creation fails
     }
 
-    // If teacher, create teacher profile entry
+    // If teacher, create teacher profile entry and update code usage
     if (role === 'teacher') {
       const { error: teacherProfileError } = await supabase
         .from('teacher_profiles')
@@ -389,6 +481,16 @@ app.post('/api/auth/register', async (req, res) => {
       if (teacherProfileError) {
         console.error('Error creating teacher profile:', teacherProfileError);
       }
+      
+      // Update teacher code usage count
+      const { error: codeUpdateError } = await supabase
+        .from('teacher_verification_codes')
+        .update({ usage_count: codeData.usage_count + 1 })
+        .eq('code', teacherCode);
+        
+      if (codeUpdateError) {
+        console.error('Error updating teacher code usage:', codeUpdateError);
+      }
     }
 
     res.json({ 
@@ -398,7 +500,7 @@ app.post('/api/auth/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Error registering user:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ error: 'Registration failed. Please try again later.' });
   }
 });
 
@@ -605,7 +707,12 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
         .single();
 
       if (codeError || !codeData) {
-        return res.status(400).json({ error: 'Invalid teacher verification code' });
+        return res.status(400).json({ error: 'Invalid teacher verification code. Please contact the school administration.' });
+      }
+      
+      // Check if code has usage limit and if it's exceeded
+      if (codeData.max_usage && codeData.usage_count >= codeData.max_usage) {
+        return res.status(400).json({ error: 'Teacher verification code has expired. Please contact the school administration for a new code.' });
       }
     }
 
@@ -620,7 +727,7 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
 
     if (updateError) {
       console.error('Role update error:', updateError);
-      return res.status(400).json({ error: 'Failed to update role' });
+      return res.status(400).json({ error: 'Failed to update role. Please try again later.' });
     }
 
     // If changing to teacher, create teacher profile
@@ -635,12 +742,22 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
       if (profileError) {
         console.error('Teacher profile creation error:', profileError);
       }
+      
+      // Update teacher code usage count
+      const { error: codeUpdateError } = await supabase
+        .from('teacher_verification_codes')
+        .update({ usage_count: codeData.usage_count + 1 })
+        .eq('code', teacherCode);
+        
+      if (codeUpdateError) {
+        console.error('Error updating teacher code usage:', codeUpdateError);
+      }
     }
 
     res.json({ success: true, message: 'Role updated successfully' });
   } catch (error) {
     console.error('Error changing role:', error);
-    res.status(500).json({ error: 'Failed to change role' });
+    res.status(500).json({ error: 'Failed to change role. Please try again later.' });
   }
 });
 
@@ -650,7 +767,13 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     console.log(`🗑️ Starting account deletion for user ID: ${userId}`);
 
+    if (!supabaseAdmin) {
+      console.error('❌ Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY configuration.');
+      return res.status(500).json({ error: 'Server not configured for account deletion. Missing SUPABASE_SERVICE_ROLE_KEY.' });
+    }
+
     // First, verify the user exists using admin client
+    console.log(`🔍 Checking if user exists: ${userId}`);
     const { data: userExists, error: userCheckError } = await supabaseAdmin
       .from('users')
       .select('id, email, name')

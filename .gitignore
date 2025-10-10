@@ -1,9 +1,8 @@
 # Dependencies
 node_modules/
-frontend-svelte/node_modules/
+frontend/node_modules/
 
 # Build outputs
-frontend-svelte/dist/
 frontend/dist/
 dist/
 

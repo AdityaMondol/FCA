@@ -1,21 +1,15 @@
 <script>
   import { navigate } from 'svelte-routing';
-  import { onMount } from 'svelte';
   import { currentLanguage, translations } from '../stores/languageStore';
-  import { auth, register } from '../stores/authStore';
+  import { register } from '../stores/authStore';
   
   let t;
   $: t = translations[$currentLanguage];
   
-  let authState;
-  auth.subscribe(value => {
-    authState = value;
-  });
-  
+  let name = '';
   let email = '';
   let password = '';
   let confirmPassword = '';
-  let name = '';
   let phone = '';
   let role = 'student';
   let teacherCode = '';
@@ -23,31 +17,17 @@
   let success = '';
   let isLoading = false;
   
-  // onMount(() => {
-  //   // Check if user is logged in and is admin
-  //   if (!authState.isAuthenticated || authState.user?.role !== 'admin') {
-  //     navigate('/login');
-  //   }
-  // });
-  
   async function handleSubmit(e) {
     e.preventDefault();
     error = '';
     success = '';
     isLoading = true;
     
-    if (!email || !password || !confirmPassword || !name) {
+    // Validation
+    if (!name || !email || !password || !confirmPassword) {
       error = $currentLanguage === 'en' 
         ? 'Please fill in all required fields' 
         : 'সমস্ত প্রয়োজনীয় ক্ষেত্র পূরণ করুন';
-      isLoading = false;
-      return;
-    }
-
-    if (role === 'teacher' && !teacherCode) {
-      error = $currentLanguage === 'en' 
-        ? 'Teacher verification code is required to register as teacher' 
-        : 'শিক্ষক হিসেবে নিবন্ধনের জন্য যাচাই কোড প্রয়োজন';
       isLoading = false;
       return;
     }
@@ -55,82 +35,64 @@
     if (password !== confirmPassword) {
       error = $currentLanguage === 'en' 
         ? 'Passwords do not match' 
-        : 'পাসওয়ার্ড মিলছে না';
+        : 'পাসওয়ার্ড মেলে না';
       isLoading = false;
       return;
     }
     
     if (password.length < 6) {
       error = $currentLanguage === 'en' 
-        ? 'Password must be at least 6 characters' 
-        : 'পাসওয়ার্ড অন্তত ৬টি অক্ষর হতে হবে';
+        ? 'Password must be at least 6 characters long' 
+        : 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে';
       isLoading = false;
       return;
     }
-
-    // Verify teacher code if registering as teacher
-    if (role === 'teacher' && teacherCode !== 'FCA2025') {
+    
+    if (role === 'teacher' && !teacherCode) {
       error = $currentLanguage === 'en' 
-        ? 'Invalid teacher verification code' 
-        : 'অবৈধ শিক্ষক যাচাই কোড';
+        ? 'Teacher verification code is required' 
+        : 'শিক্ষক যাচাই কোড প্রয়োজন';
       isLoading = false;
       return;
     }
     
-    const result = await register(email, password, name, role, phone, teacherCode);
-    isLoading = false;
-    
-    if (result.success) {
-      if (result.emailSent) {
+    try {
+      // Correct parameter order: email, password, name, role, phone, teacherCode
+      const result = await register(email, password, name, role, phone, teacherCode);
+      
+      if (result.success) {
+        // Show success message and redirect to success page
         success = $currentLanguage === 'en' 
-          ? '✅ Registration successful! Please check your email to verify your account before logging in.' 
-          : '✅ নিবন্ধন সফল! লগইন করার আগে আপনার ইমেল যাচাই করুন।';
+          ? 'Registration successful! Please check your email for verification.' 
+          : 'নিবন্ধন সফল হয়েছে! যাচাইয়ের জন্য আপনার ইমেইল চেক করুন।';
+        setTimeout(() => {
+          navigate('/registration-success');
+        }, 2000);
       } else {
-        success = $currentLanguage === 'en' 
-          ? 'User registered successfully!' 
-          : 'ব্যবহারকারী সফলভাবে নিবন্ধিত হয়েছে!';
+        error = result.error || ($currentLanguage === 'en' 
+          ? 'Registration failed. Please try again.' 
+          : 'নিবন্ধন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
       }
-      
-      // Clear form
-      email = '';
-      password = '';
-      confirmPassword = '';
-      name = '';
-      phone = '';
-      role = 'student';
-      teacherCode = '';
-      
-      // Redirect to login after 5 seconds
-      setTimeout(() => {
-        navigate('/login');
-      }, 5000);
-    } else {
-      error = result.error || ($currentLanguage === 'en' 
-        ? 'Registration failed. Please try again.' 
-        : 'নিবন্ধন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+    } catch (err) {
+      error = err.message || ($currentLanguage === 'en' 
+        ? 'An error occurred during registration' 
+        : 'নিবন্ধনের সময় একটি ত্রুটি ঘটেছে');
+    } finally {
+      isLoading = false;
     }
   }
 </script>
 
-<!-- Page Header -->
-<section class="gradient-bg text-white py-12">
-  <div class="container mx-auto px-4 text-center">
-    <h1 class="text-2xl md:text-3xl font-bold mb-3 animate-fade-in">
-      {$currentLanguage === 'en' ? 'Register New User' : 'নতুন ব্যবহারকারী নিবন্ধন'}
-    </h1>
-    <p class="text-base max-w-3xl mx-auto animate-fade-in">
-      {$currentLanguage === 'en' 
-        ? 'Create a new user account' 
-        : 'নতুন ব্যবহারকারী অ্যাকাউন্ট তৈরি করুন'}
-    </p>
-  </div>
-</section>
-
 <!-- Registration Form -->
-<section class="py-12 bg-white dark:bg-gray-900 min-h-screen">
+<section class="relative py-12 bg-gradient-to-b from-white via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 min-h-screen overflow-hidden">
+  <!-- Decorative background shapes -->
+  <div class="pointer-events-none absolute inset-0 opacity-60 dark:opacity-30">
+    <div class="absolute -top-24 -left-24 w-72 h-72 bg-primary/20 dark:bg-primary/10 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 -right-24 w-80 h-80 bg-secondary/20 dark:bg-secondary/10 rounded-full blur-3xl"></div>
+  </div>
   <div class="container mx-auto px-4">
     <div class="max-w-md mx-auto">
-      <div class="card">
+      <div class="card backdrop-blur-sm bg-white/90 dark:bg-gray-800/80 ring-1 ring-gray-200 dark:ring-gray-700 shadow-xl transition-all duration-300">
         <div class="text-center mb-8">
           <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-3">
             <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,7 +127,7 @@
           </div>
         {/if}
         
-        <form on:submit={handleSubmit} class="space-y-6">
+        <form on:submit={handleSubmit} class="space-y-6 animate-fade-in">
           <div>
             <label for="name" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               {$currentLanguage === 'en' ? 'Full Name' : 'পূর্ণ নাম'}
@@ -176,7 +138,7 @@
               bind:value={name}
               required
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
               placeholder={$currentLanguage === 'en' ? 'Enter your name' : 'নাম লিখুন'}
             />
           </div>
@@ -191,7 +153,7 @@
               bind:value={email}
               required
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
               placeholder="user@example.com"
             />
           </div>
@@ -206,7 +168,7 @@
               bind:value={password}
               required
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
               placeholder="••••••••"
             />
           </div>
@@ -221,7 +183,7 @@
               bind:value={confirmPassword}
               required
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
               placeholder="••••••••"
             />
           </div>
@@ -235,7 +197,7 @@
               id="phone"
               bind:value={phone}
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
               placeholder={$currentLanguage === 'en' ? '+880 1XXXXXXXXX' : '+৮৮০ ১XXXXXXXXX'}
             />
           </div>
@@ -248,7 +210,7 @@
               id="role"
               bind:value={role}
               disabled={isLoading}
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
             >
               <option value="student">{$currentLanguage === 'en' ? 'Student' : 'শিক্ষার্থী'}</option>
               <option value="guardian">{$currentLanguage === 'en' ? 'Guardian/Parent' : 'অভিভাবক'}</option>
@@ -268,7 +230,7 @@
                   bind:value={teacherCode}
                   required
                   disabled={isLoading}
-                  class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white transition-all disabled:opacity-50"
+                  class="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-800 dark:text-white transition-all disabled:opacity-50 shadow-sm"
                   placeholder={$currentLanguage === 'en' ? 'Enter teacher code' : 'শিক্ষক কোড লিখুন'}
                 />
               </div>
@@ -280,10 +242,24 @@
             </div>
           {/if}
           
+          <div class="flex items-center">
+            <input
+              id="terms"
+              type="checkbox"
+              required
+              class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+            />
+            <label for="terms" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+              {$currentLanguage === 'en' 
+                ? 'I agree to the Terms and Conditions' 
+                : 'আমি শর্তাবলী মেনে নিচ্ছি'}
+            </label>
+          </div>
+          
           <button
             type="submit"
             disabled={isLoading}
-            class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
           >
             {#if isLoading}
               <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
