@@ -148,8 +148,8 @@ app.get('/api/academy-info', (req, res) => {
   });
 });
 
-// Get all notices
-app.get('/api/notices', async (req, res) => {
+// Get all notices (requires authentication)
+app.get('/api/notices', authenticateToken, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('notices')

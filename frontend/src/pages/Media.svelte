@@ -1,22 +1,24 @@
 <script>
   import { currentLanguage, translations } from '../stores/languageStore';
   import { onMount } from 'svelte';
+  import { API_URL } from '../config';
   
   let t;
   $: t = translations[$currentLanguage];
   
   let mediaItems = [];
+  let isLoading = true;
   
   onMount(async () => {
-    // Fetch media from API (placeholder data for now)
-    mediaItems = [
-      { id: 1, type: 'image', title: 'Classroom Activities', date: '2024-01-15' },
-      { id: 2, type: 'image', title: 'Student Success Celebration', date: '2024-01-10' },
-      { id: 3, type: 'image', title: 'Annual Function', date: '2023-12-20' },
-      { id: 4, type: 'image', title: 'Sports Day', date: '2023-12-15' },
-      { id: 5, type: 'image', title: 'Prize Distribution', date: '2023-12-10' },
-      { id: 6, type: 'image', title: 'Cultural Program', date: '2023-12-05' }
-    ];
+    try {
+      const response = await fetch(`${API_URL}/api/media`);
+      if (response.ok) {
+        mediaItems = await response.json();
+      }
+    } catch (error) {
+      console.error('Error fetching media:', error);
+    }
+    isLoading = false;
   });
 </script>
 
@@ -31,24 +33,49 @@
 <!-- Media Gallery -->
 <section class="py-12 bg-white dark:bg-gray-900">
   <div class="container mx-auto px-4">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-      {#each mediaItems as item (item.id)}
-        <div class="card group cursor-pointer overflow-hidden">
-          <div class="w-full h-64 bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-gray-700 dark:to-gray-600 rounded-lg mb-4 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-            <svg class="w-24 h-24 text-primary dark:text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+    {#if mediaItems.length > 0}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        {#each mediaItems as item (item.id)}
+          <div class="card group cursor-pointer overflow-hidden">
+            {#if item.file_url}
+              <div class="w-full h-64 rounded-lg mb-4 overflow-hidden group-hover:scale-105 transition-transform duration-300">
+                <img src={item.file_url} alt={item.title_en || item.title} class="w-full h-full object-cover" />
+              </div>
+            {:else}
+              <div class="w-full h-64 bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-gray-700 dark:to-gray-600 rounded-lg mb-4 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <svg class="w-24 h-24 text-primary dark:text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            {/if}
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {$currentLanguage === 'en' ? (item.title_en || item.title) : (item.title_bn || item.title)}
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 flex items-center text-sm">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {new Date(item.created_at || item.date).toLocaleDateString()}
+            </p>
           </div>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{item.title}</h3>
-          <p class="text-gray-600 dark:text-gray-300 flex items-center text-sm">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {item.date}
-          </p>
-        </div>
-      {/each}
-    </div>
+        {/each}
+      </div>
+    {:else}
+      <!-- Empty State -->
+      <div class="max-w-2xl mx-auto card text-center py-12">
+        <svg class="w-24 h-24 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          {$currentLanguage === 'en' ? 'No Media Available' : 'কোন মিডিয়া উপলব্ধ নেই'}
+        </h3>
+        <p class="text-gray-600 dark:text-gray-300 text-base">
+          {$currentLanguage === 'en' 
+            ? 'Media content will be available once teachers upload photos and videos.' 
+            : 'শিক্ষকরা ফটো এবং ভিডিও আপলোড করলে মিডিয়া কন্টেন্ট উপলব্ধ হবে।'}
+        </p>
+      </div>
+    {/if}
   </div>
 </section>
 

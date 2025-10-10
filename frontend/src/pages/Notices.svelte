@@ -1,52 +1,43 @@
 <script>
   import { currentLanguage, translations } from '../stores/languageStore';
+  import { auth } from '../stores/authStore';
   import { onMount } from 'svelte';
+  import { navigate } from 'svelte-routing';
+  import { API_URL } from '../config';
   
   let t;
   $: t = translations[$currentLanguage];
+  let authState;
+  auth.subscribe(value => authState = value);
   
   let notices = [];
+  let isLoading = true;
   
   onMount(async () => {
+    // Check if user is logged in
+    if (!authState.isAuthenticated) {
+      isLoading = false;
+      return;
+    }
+
     try {
-      const response = await fetch('/api/notices');
+      const response = await fetch(`${API_URL}/api/notices`, {
+        headers: {
+          'Authorization': `Bearer ${authState.token}`
+        }
+      });
       if (response.ok) {
         notices = await response.json();
       }
     } catch (error) {
       console.error('Error fetching notices:', error);
-      // Fallback to sample data
-      notices = [
-        {
-          id: 1,
-          title_en: 'Admission Open for 2024',
-          title_bn: '২০২৪ এর জন্য ভর্তি খোলা',
-          content_en: 'Admissions are now open for the upcoming academic session. Limited seats available.',
-          content_bn: 'আগামী শিক্ষাবর্ষের জন্য ভর্তি এখন খোলা। সীমিত আসন উপলব্ধ।',
-          date: '2024-01-15',
-          priority: 'high'
-        },
-        {
-          id: 2,
-          title_en: 'Class Schedule Update',
-          title_bn: 'ক্লাসের সময়সূচী আপডেট',
-          content_en: 'New class timings will be effective from next week. Please check the notice board.',
-          content_bn: 'নতুন ক্লাসের সময় আগামী সপ্তাহ থেকে কার্যকর হবে। অনুগ্রহ করে নোটিশ বোর্ড দেখুন।',
-          date: '2024-01-10',
-          priority: 'medium'
-        },
-        {
-          id: 3,
-          title_en: 'Upcoming Mock Test',
-          title_bn: 'আসন্ন মডেল টেস্ট',
-          content_en: 'A mock test will be conducted on January 25th. All students must participate.',
-          content_bn: '২৫ জানুয়ারি একটি মডেল টেস্ট অনুষ্ঠিত হবে। সকল শিক্ষার্থীকে অংশগ্রহণ করতে হবে।',
-          date: '2024-01-08',
-          priority: 'high'
-        }
-      ];
     }
+    isLoading = false;
   });
+
+  function handleLoginClick() {
+    navigate('/login');
+  }
   
   function getPriorityColor(priority) {
     switch(priority) {
@@ -77,7 +68,26 @@
 <section class="py-12 bg-white dark:bg-gray-900">
   <div class="container mx-auto px-4">
     <div class="max-w-4xl mx-auto space-y-4">
-      {#each notices as notice (notice.id)}
+      {#if !authState.isAuthenticated}
+        <!-- Login Required Message -->
+        <div class="card text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-600">
+          <svg class="w-24 h-24 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            {$currentLanguage === 'en' ? 'Login Required' : 'লগইন প্রয়োজন'}
+          </h3>
+          <p class="text-gray-600 dark:text-gray-300 mb-6 text-base">
+            {$currentLanguage === 'en' 
+              ? 'Please login to view notices and important announcements' 
+              : 'নোটিশ এবং গুরুত্বপূর্ণ ঘোষণা দেখতে অনুগ্রহ করে লগইন করুন'}
+          </p>
+          <button on:click={handleLoginClick} class="btn-primary">
+            {$currentLanguage === 'en' ? 'Login Now' : 'এখন লগইন করুন'}
+          </button>
+        </div>
+      {:else}
+        {#each notices as notice (notice.id)}
         <div class="card border-l-4 {getPriorityColor(notice.priority)} animate-fade-in">
           <div class="flex items-start justify-between mb-4">
             <div class="flex-1">
@@ -103,17 +113,18 @@
             </div>
           </div>
         </div>
-      {/each}
-      
-      {#if notices.length === 0}
-        <div class="card text-center py-12">
-          <svg class="w-24 h-24 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p class="text-gray-500 dark:text-gray-400 text-base">
-            {$currentLanguage === 'en' ? 'No notices available at the moment' : 'এই মুহূর্তে কোন নোটিশ উপলব্ধ নেই'}
-          </p>
-        </div>
+        {/each}
+        
+        {#if notices.length === 0 && !isLoading}
+          <div class="card text-center py-12">
+            <svg class="w-24 h-24 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-gray-500 dark:text-gray-400 text-base">
+              {$currentLanguage === 'en' ? 'No notices available at the moment' : 'এই মুহূর্তে কোন নোটিশ উপলব্ধ নেই'}
+            </p>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
