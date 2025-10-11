@@ -25,10 +25,10 @@
     }
     
     try {
-      // Add timeout to prevent infinite spinning
+      // Add timeout to prevent infinite spinning (increased to 45s for slow connections/cold starts)
       const loginPromise = login(email, password);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Login timeout')), 15000)
+        setTimeout(() => reject(new Error('Login timeout')), 45000)
       );
       
       const result = await Promise.race([loginPromise, timeoutPromise]);

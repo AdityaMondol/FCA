@@ -3,6 +3,7 @@ services:
     name: farid-cadet-academy-backend
     env: node
     plan: free
+    # Backend only - frontend is deployed separately on Netlify
     buildCommand: npm install
     startCommand: node server.js
     envVars:

@@ -150,13 +150,15 @@ export const apiClient = new ApiClient();
 
 // Utility function for handling API errors gracefully
 export function handleApiError(error, defaultMessage = 'An error occurred. Please try again.') {
+  let message;
+  
   if (error.message.includes('Failed to fetch')) {
-    return 'Network error. Please check your internet connection and try again.';
+    message = 'Network error. Please check your internet connection and try again.';
+  } else if (error.message.includes('timeout')) {
+    message = 'Request timeout. Please try again.';
+  } else {
+    message = error.message || defaultMessage;
   }
   
-  if (error.message.includes('timeout')) {
-    return 'Request timeout. Please try again.';
-  }
-  
-  return error.message || defaultMessage;
+  return { message };
 }

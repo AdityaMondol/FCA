@@ -57,11 +57,21 @@ async function fetchUserProfile(userId, forceRefresh = false) {
   }
   
   try {
-    const { data: userProfile, error: profileError } = await supabase
+    // Add timeout to profile fetch
+    const profilePromise = supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+    );
+    
+    const { data: userProfile, error: profileError } = await Promise.race([
+      profilePromise,
+      timeoutPromise.then(() => ({ data: null, error: { message: 'Timeout' } }))
+    ]);
 
     if (profileError) {
       console.warn('⚠️ Profile fetch failed:', profileError.message);
@@ -197,9 +207,9 @@ export const login = async (email, password) => {
       password
     });
     
-    // Extended timeout of 30 seconds instead of 15
+    // Extended timeout for slow connections and cold starts
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new AppError('Login timeout - server took too long to respond', ERROR_CODES.TIMEOUT_ERROR)), 30000)
+      setTimeout(() => reject(new AppError('Login timeout - server took too long to respond', ERROR_CODES.TIMEOUT_ERROR)), 45000)
     );
     
     const { data, error } = await Promise.race([loginPromise, timeoutPromise]);

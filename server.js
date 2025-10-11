@@ -31,6 +31,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - REQUIRED for Render/Heroku/behind reverse proxy
+app.set('trust proxy', 1);
+
 // Security enhancements
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development_only';
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'fallback_secret_key_for_development_only') {
@@ -146,12 +149,16 @@ app.use((req, res, next) => {
 // Rate limiting for authentication endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
+  max: 20, // limit each IP to 20 requests per windowMs (increased for testing/development)
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health check and status endpoints
+    return req.path === '/api/health';
+  }
 });
 
 // Apply rate limiting to auth endpoints
@@ -1625,18 +1632,34 @@ app.get('/api/contacts', authenticateToken, authorizeRole('teacher', 'admin'), a
 
 // ============= SERVE FRONTEND (Development Only) =============
 
-// Serve frontend for all other routes (only in development)
-if (process.env.NODE_ENV !== 'production') {
+// Handle non-API routes
+// Since frontend is deployed on Netlify, redirect users who access backend URL directly
+if (process.env.NODE_ENV === 'production') {
+  // Redirect root and non-API routes to Netlify frontend
+  app.get('/', (req, res) => {
+    res.redirect(FRONTEND_URL);
+  });
+  
+  // For any other non-API route, return info or redirect
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
+    // If it's an API route that doesn't exist, return 404
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ 
+        error: 'API endpoint not found',
+        path: req.path
+      });
+    } else {
+      // Otherwise redirect to frontend
+      res.redirect(FRONTEND_URL);
+    }
   });
 } else {
-  // In production, just return API info for unknown routes
+  // In development, just return API info for unknown routes
   app.get('*', (req, res) => {
     res.json({ 
       message: 'Farid Cadet Academy API Server', 
       version: '1.0.0',
-      frontend: 'Deployed separately on Netlify'
+      frontend: 'Use Vite dev server on port 5173'
     });
   });
 }
