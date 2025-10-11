@@ -1,3 +1,4 @@
+/* stylelint-disable at-rule-no-unknown */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,7 +23,7 @@
   }
   
   .gradient-bg {
-    @apply bg-gradient-to-br from-primary-600 via-primary-500 to-secondary-500;
+    @apply bg-gradient-to-br from-primary-600 via-purple-600 to-secondary-500;
   }
   
   .section-title {

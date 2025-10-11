@@ -23,3 +23,15 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://farid-cadet.netlify.app
+    # Health check configuration
+    healthCheckPath: /api/health
+    # Auto-deploy configuration
+    autoDeploy: true
+    # Environment-specific settings
+    envSpecificConfig:
+      - environment: production
+        envVars:
+          - key: LOG_LEVEL
+            value: info
+          - key: ENABLE_CORS
+            value: true

@@ -218,13 +218,17 @@
           navigate('/');
         }, 2000);
       } else {
-        const error = await response.json();
-        message = error.error || 'Failed to delete account';
+        const errorData = await response.json();
+        console.error('Delete account error:', errorData);
+        message = errorData.error || ($currentLanguage === 'en' 
+          ? 'Failed to delete account. Please try again.' 
+          : 'অ্যাকাউন্ট মুছতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
       }
     } catch (error) {
+      console.error('Delete account network error:', error);
       message = $currentLanguage === 'en' 
-        ? 'Error deleting account. Please try again.' 
-        : 'অ্যাকাউন্ট মুছতে ত্রুটি। আবার চেষ্টা করুন।';
+        ? 'Network error deleting account. Please check your connection and try again.' 
+        : 'অ্যাকাউন্ট মুছতে নেটওয়ার্ক ত্রুটি। আপনার সংযোগ চেক করুন এবং আবার চেষ্টা করুন।';
     }
     isLoading = false;
   }

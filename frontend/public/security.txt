@@ -1,0 +1,26 @@
+# Security Policy for Farid Cadet Academy
+# Last updated: 2025-10-11
+
+Contact: mailto:security@faridcadetacademy.com
+Expires: 2026-10-11T11:00:00.000Z
+Preferred-Languages: en, bn
+Canonical: https://farid-cadet.netlify.app/.well-known/security.txt
+Policy: https://farid-cadet.netlify.app/security-policy
+
+# Disclosure Policy
+# We prefer to receive security reports in English or Bengali
+# We will acknowledge receipt of your report within 48 hours
+# We will strive to fix confirmed vulnerabilities within 30 days
+# We will not take legal action against security researchers who follow responsible disclosure practices
+
+# Supported Versions
+# We only support the latest version of our application deployed at https://farid-cadet.netlify.app
+
+# Reporting Guidelines
+# Please provide detailed steps to reproduce the vulnerability
+# Please include screenshots or proof-of-concept code if possible
+# Please do not exploit the vulnerability beyond what is necessary to demonstrate it
+# Please do not access or modify data that does not belong to you
+# Please do not disrupt the service for other users
+
+# Thank you for helping us keep our users safe!

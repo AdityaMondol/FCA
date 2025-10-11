@@ -1,6 +1,8 @@
 import { writable, get } from 'svelte/store';
 import { createClient } from '@supabase/supabase-js';
 import { API_URL } from '../config';
+import { apiClient, handleApiError } from '../utils/api';
+import { AppError, ERROR_CODES } from '../utils/error';
 
 // Initialize Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -30,6 +32,11 @@ export const supabase = createClient(
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       storageKey: 'fca-auth-token',
       flowType: 'pkce'
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'fca-dashboard'
+      }
     }
   }
 );
@@ -184,14 +191,22 @@ export const login = async (email, password) => {
     console.log('🔐 Attempting login...');
     const startTime = Date.now();
     
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // Set a longer timeout for login operations
+    const loginPromise = supabase.auth.signInWithPassword({
       email,
       password
     });
+    
+    // Extended timeout of 30 seconds instead of 15
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new AppError('Login timeout - server took too long to respond', ERROR_CODES.TIMEOUT_ERROR)), 30000)
+    );
+    
+    const { data, error } = await Promise.race([loginPromise, timeoutPromise]);
 
     if (error) {
       console.error('❌ Login failed:', error.message);
-      throw new Error(error.message);
+      throw new AppError(error.message, ERROR_CODES.INVALID_CREDENTIALS);
     }
 
     console.log('✅ Login successful! Fetching profile...');
@@ -225,7 +240,16 @@ export const login = async (email, password) => {
     };
   } catch (error) {
     console.error('❌ Login error:', error);
-    return { success: false, error: error.message };
+    const appError = handleApiError(error);
+    
+    // More specific error messages
+    if (appError.code === ERROR_CODES.TIMEOUT_ERROR) {
+      return { success: false, error: 'Login is taking longer than expected. Please check your internet connection and try again.' };
+    } else if (appError.code === ERROR_CODES.INVALID_CREDENTIALS) {
+      return { success: false, error: 'Invalid email or password. Please check your credentials and try again.' };
+    } else {
+      return { success: false, error: appError.message || 'Login failed. Please try again.' };
+    }
   }
 };
 
@@ -249,28 +273,16 @@ export const logout = async () => {
 
 export const register = async (email, password, name, role = 'student', phone = '', teacherCode = '') => {
   try {
-    // Call backend API to validate and register
-    const response = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        email, 
-        password, 
-        name, 
-        role,
-        phone,
-        teacherCode
-      })
+    // Call backend API to validate and register using the new API client
+    const data = await apiClient.post('/api/auth/register', { 
+      email, 
+      password, 
+      name, 
+      role,
+      phone,
+      teacherCode
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
-    }
-
-    const data = await response.json();
     return { 
       success: true, 
       message: data.message,
@@ -278,6 +290,7 @@ export const register = async (email, password, name, role = 'student', phone = 
     };
   } catch (error) {
     console.error('Registration error:', error);
-    return { success: false, error: error.message };
+    const appError = handleApiError(error);
+    return { success: false, error: appError.message };
   }
 };

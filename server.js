@@ -7,6 +7,23 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const { validate, sanitizeInput } = require('./utils/validate');
+const { 
+  verifyToken, 
+  hasPermission, 
+  hasPermissionLevel, 
+  SESSION_CONFIG 
+} = require('./utils/auth');
+const { 
+  processImage, 
+  generateFileName, 
+  uploadToSupabase, 
+  deleteFromSupabase, 
+  uploadMiddlewares,
+  FILE_SIZE_LIMITS,
+  IMAGE_PROCESSING_OPTIONS
+} = require('./utils/upload');
+const { logger, httpLogger, errorLogger } = require('./utils/log');
 
 // Load environment variables
 dotenv.config();
@@ -14,13 +31,27 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Security enhancements
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development_only';
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'fallback_secret_key_for_development_only') {
+  logger.warn('WARNING: Using fallback JWT secret in production. Please set JWT_SECRET in environment variables.');
+}
+
+// Add security headers middleware
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+
 // Add startup logging
-console.log('========================================');
-console.log('🚀 Farid Cadet Academy Backend Server');
-console.log('========================================');
-console.log('📅 Started at:', new Date().toLocaleString());
-console.log('🌐 Port:', PORT);
-console.log('📂 Environment:', process.env.NODE_ENV || 'development');
+logger.info('🚀 Farid Cadet Academy Backend Server Starting', {
+  port: PORT,
+  environment: process.env.NODE_ENV || 'development',
+  nodeVersion: process.version
+});
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'your_supabase_url_here';
@@ -28,13 +59,15 @@ const supabaseKey = process.env.SUPABASE_KEY || 'your_supabase_key_here';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // MUST be service role key
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-console.log('🔐 Supabase URL:', supabaseUrl.substring(0, 30) + '...');
-console.log('🔑 Supabase Key:', supabaseKey.substring(0, 20) + '...');
-console.log('🧭 Frontend URL:', FRONTEND_URL);
+logger.info('🔐 Supabase Configuration', {
+  url: supabaseUrl.substring(0, 30) + '...',
+  frontendUrl: FRONTEND_URL
+});
+
 if (!supabaseServiceRoleKey) {
-  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is NOT set. Admin operations (like delete account) will fail.');
+  logger.error('❌ SUPABASE_SERVICE_ROLE_KEY is NOT set. Admin operations (like delete account) will fail.');
 } else if (supabaseServiceRoleKey === supabaseKey) {
-  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY appears to be the anon key. Please set the Service Role key for admin operations.');
+  logger.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY appears to be the anon key. Please set the Service Role key for admin operations.');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -42,15 +75,15 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey) : null;
 
 // Test database connection
-console.log('🔌 Testing database connection...');
+logger.info('🔌 Testing database connection...');
 supabase
   .from('users')
   .select('count')
   .then(({ data, error }) => {
     if (error) {
-      console.error('❌ Database connection failed:', error.message);
+      logger.error('❌ Database connection failed', { error: error.message });
     } else {
-      console.log('✅ Database connection successful');
+      logger.info('✅ Database connection successful');
     }
   });
 
@@ -60,8 +93,7 @@ const corsOptions = {
     'http://localhost:5173', // Vite dev server
     'http://localhost:3000', // Local backend
     'https://farid-cadet.netlify.app', // Production frontend
-    FRONTEND_URL,
-    /\.netlify\.app$/ // Allow any Netlify subdomain
+    FRONTEND_URL
   ],
   credentials: true,
   optionsSuccessStatus: 200
@@ -70,9 +102,44 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Apply HTTP logging middleware
+app.use(httpLogger);
+
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.path} - ${new Date().toLocaleTimeString()}`);
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  const origin = req.get('Origin') || 'Direct';
+  
+  // Log additional details for better debugging
+  logger.debug('📥 Request received', {
+    method: req.method,
+    path: req.path,
+    origin,
+    userAgent: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : '')
+  });
+  
+  // Log request body for POST/PUT requests (limit size for readability)
+  if ((req.method === 'POST' || req.method === 'PUT') && req.body && Object.keys(req.body).length > 0) {
+    const bodyKeys = Object.keys(req.body);
+    logger.debug('📦 Request body', {
+      method: req.method,
+      path: req.path,
+      keys: bodyKeys,
+      bodySize: JSON.stringify(req.body).length
+    });
+  }
+  
+  // Log query parameters if present
+  if (Object.keys(req.query).length > 0) {
+    logger.debug('🔍 Query parameters', {
+      method: req.method,
+      path: req.path,
+      queryKeys: Object.keys(req.query)
+    });
+  }
+  
+  // Mark request start time
+  req._startTime = Date.now();
   next();
 });
 
@@ -105,63 +172,110 @@ const roleChangeLimiter = rateLimit({
 // Apply rate limiting to role change endpoint
 app.use('/api/change-role', roleChangeLimiter);
 
-// Configure multer for file uploads
+// Configure multer for file uploads with enhanced options
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: FILE_SIZE_LIMITS.media }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    // Allow images and videos
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/ogg'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and videos are allowed.'));
+    }
+  }
 });
 
-// Supabase Auth middleware
-const authenticateToken = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+// Enhanced profile photo upload with image processing
+const uploadProfilePhoto = uploadMiddlewares.profilePhoto.single('profile_photo');
 
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
+// Enhanced media upload with processing
+const uploadMedia = uploadMiddlewares.media.single('file');
 
-  try {
-    // Verify Supabase JWT token
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
+// Enhanced authorization middleware for role-based access control
+const authorizeRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      logger.warn('Authentication required', {
+        path: req.path,
+        method: req.method,
+        ip: req.ip
+      });
+      return res.status(401).json({ error: 'Authentication required' });
     }
-
-    // Get user profile with role
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    req.user = {
-      id: user.id,
-      email: user.email,
-      role: userProfile?.role || 'student',
-      ...userProfile
-    };
+    
+    if (!hasPermission(req.user.role, allowedRoles)) {
+      logger.warn('Insufficient permissions', {
+        path: req.path,
+        method: req.method,
+        userRole: req.user.role,
+        requiredRoles: allowedRoles,
+        userId: req.user.id
+      });
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
     next();
-  } catch (error) {
-    return res.status(403).json({ error: 'Authentication failed' });
-  }
+  };
 };
 
-// Input validation middleware
+// Enhanced input validation middleware
 const validateInput = (req, res, next) => {
+  // Sanitize all input first
+  if (req.body) {
+    req.body = sanitizeInput(req.body);
+  }
+  
+  if (req.query) {
+    req.query = sanitizeInput(req.query);
+  }
+  
+  if (req.params) {
+    req.params = sanitizeInput(req.params);
+  }
+  
   // Check for potentially malicious input
   const maliciousPatterns = [
     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, // Script tags
     /javascript:/gi, // JavaScript URLs
     /on\w+\s*=/gi, // Event handlers
     /data:/gi, // Data URLs
+    /vbscript:/gi, // VBScript
+    /expression\(/gi // CSS expressions
+  ];
+  
+  // Additional validation for SQL injection patterns
+  const sqlInjectionPatterns = [
+    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|FETCH)\b)/gi,
+    /(;|\bOR\b|\bAND\b).*?=.*?/gi
   ];
   
   const checkObject = (obj) => {
     if (typeof obj === 'string') {
+      // Check for malicious patterns
       for (const pattern of maliciousPatterns) {
         if (pattern.test(obj)) {
+          logger.warn('Malicious input detected', {
+            input: obj.substring(0, 100) + (obj.length > 100 ? '...' : ''),
+            pattern: pattern.toString()
+          });
+          return false;
+        }
+      }
+      
+      // Check for SQL injection patterns
+      for (const pattern of sqlInjectionPatterns) {
+        if (pattern.test(obj)) {
+          logger.warn('SQL injection pattern detected', {
+            input: obj.substring(0, 100) + (obj.length > 100 ? '...' : ''),
+            pattern: pattern.toString()
+          });
           return false;
         }
       }
@@ -176,19 +290,110 @@ const validateInput = (req, res, next) => {
   };
   
   if (!checkObject(req.body) || !checkObject(req.query) || !checkObject(req.params)) {
+    logger.warn('Invalid input detected', {
+      path: req.path,
+      method: req.method
+    });
     return res.status(400).json({ error: 'Invalid input detected' });
   }
   
   next();
 };
 
+// Enhanced Supabase Auth middleware with session management
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  logger.debug('🔐 Auth attempt', {
+    path: req.path,
+    method: req.method,
+    tokenProvided: !!token
+  });
+
+  if (!token) {
+    logger.warn('❌ Auth failed - No token provided', {
+      path: req.path,
+      method: req.method
+    });
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    // Verify JWT token first
+    const { valid, payload, error } = verifyToken(token);
+    
+    if (!valid) {
+      logger.warn('❌ Auth failed - Invalid token', {
+        path: req.path,
+        method: req.method,
+        error
+      });
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    // Verify Supabase JWT token
+    const { data: { user }, error: supabaseError } = await supabase.auth.getUser(token);
+    
+    if (supabaseError || !user) {
+      logger.warn('❌ Auth failed - Supabase verification failed', {
+        path: req.path,
+        method: req.method,
+        error: supabaseError?.message || 'No user found'
+      });
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    // Get user profile with role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      logger.warn('⚠️ Profile fetch error', {
+        userId: user.id,
+        error: profileError.message
+      });
+    }
+
+    req.user = {
+      id: user.id,
+      email: user.email,
+      role: userProfile?.role || 'student',
+      ...userProfile,
+      ...payload // Include JWT payload
+    };
+    
+    logger.info('✅ Auth successful', {
+      path: req.path,
+      method: req.method,
+      userEmail: user.email,
+      userRole: userProfile?.role || 'student'
+    });
+    next();
+  } catch (error) {
+    logger.error('❌ Auth error', {
+      path: req.path,
+      method: req.method,
+      error: error.message
+    });
+    return res.status(403).json({ error: 'Authentication failed' });
+  }
+};
+
 // Apply input validation to all routes
 app.use(validateInput);
+
+// Apply error logging middleware
+app.use(errorLogger);
 
 // ============= API ROUTES =============
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  logger.info('Health check endpoint called');
   res.json({ 
     status: 'healthy',
     message: 'Farid Cadet Academy Backend is running!',
@@ -198,6 +403,7 @@ app.get('/api/health', (req, res) => {
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
+  logger.info('Test endpoint called');
   res.json({ message: 'API is working!', timestamp: new Date().toISOString() });
 });
 
@@ -276,46 +482,80 @@ app.get('/api/academy-info', (req, res) => {
 // Get all notices (requires authentication)
 app.get('/api/notices', authenticateToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // Add pagination support
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+    
+    const { data, error, count } = await supabase
       .from('notices')
-      .select('*')
-      .order('date', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('date', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json(data || []);
+    res.json({
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count,
+        totalPages: Math.ceil(count / limit)
+      }
+    });
   } catch (error) {
     console.error('Error fetching notices:', error);
     res.status(500).json({ error: 'Failed to fetch notices' });
   }
 });
 
-// Get all media items
+// Get all media items with pagination
 app.get('/api/media', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // Add pagination support
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const offset = (page - 1) * limit;
+    
+    const { data, error, count } = await supabase
       .from('media')
-      .select('*')
-      .order('date', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('date', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    res.json(data || []);
+    res.json({
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count,
+        totalPages: Math.ceil(count / limit)
+      }
+    });
   } catch (error) {
     console.error('Error fetching media:', error);
     res.status(500).json({ error: 'Failed to fetch media' });
   }
 });
 
-// Submit contact form
+// Submit contact form with proper validation
 app.post('/api/contact', async (req, res) => {
   try {
-    const { name, email, phone, message } = req.body;
-
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: 'Name, email, and message are required' });
+    // Validate input
+    const validation = validate('contactForm', req.body);
+    if (!validation.isValid) {
+      logger.warn('Contact form validation failed', {
+        errors: validation.errors
+      });
+      return res.status(400).json({ error: validation.errors[0] });
     }
 
+    const { name, email, phone, message } = req.body;
+
+    const startTime = Date.now();
     const { data, error } = await supabase
       .from('contacts')
       .insert([
@@ -327,34 +567,61 @@ app.post('/api/contact', async (req, res) => {
           created_at: new Date().toISOString()
         }
       ]);
+    
+    const duration = Date.now() - startTime;
+    logger.database('INSERT', 'contacts', duration, error);
 
     if (error) throw error;
 
+    logger.info('Contact form submitted successfully', {
+      email,
+      name
+    });
+
     res.json({ success: true, message: 'Contact form submitted successfully' });
   } catch (error) {
-    console.error('Error submitting contact form:', error);
+    logger.error('Error submitting contact form', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to submit contact form' });
   }
 });
 
 // ============= AUTHENTICATION ROUTES =============
 
-// Login (using Supabase Auth)
+// Login (using Supabase Auth) with proper validation
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    logger.info('🔐 Login attempt', { email });
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    // Validate input
+    const validation = validate('login', req.body);
+    if (!validation.isValid) {
+      logger.warn('Login validation failed', {
+        email,
+        errors: validation.errors
+      });
+      return res.status(400).json({ error: validation.errors[0] });
     }
 
     // Use Supabase Auth to sign in
+    const startTime = Date.now();
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password
     });
+    
+    const duration = Date.now() - startTime;
+    logger.auth('LOGIN_ATTEMPT', null, email, !authError, authError);
 
     if (authError) {
+      logger.warn('Login failed', {
+        email,
+        error: authError.message
+      });
       // Provide more specific error messages
       if (authError.message.includes('Invalid login credentials')) {
         return res.status(401).json({ error: 'Invalid email or password' });
@@ -366,12 +633,30 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Get user profile from public.users table
+    const profileStartTime = Date.now();
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
+    
+    const profileDuration = Date.now() - profileStartTime;
+    logger.database('SELECT', 'users', profileDuration, profileError);
 
+    if (profileError) {
+      logger.warn('Profile fetch error', {
+        email,
+        userId: authData.user.id,
+        error: profileError.message
+      });
+    }
+
+    logger.info('✅ Login successful', {
+      email,
+      userId: authData.user.id,
+      userRole: userProfile?.role || 'student'
+    });
+    
     res.json({
       session: authData.session,
       user: {
@@ -384,45 +669,68 @@ app.post('/api/auth/login', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error logging in:', error);
+    logger.error('Error logging in', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Login failed. Please try again later.' });
   }
 });
 
-// Register (using Supabase Auth with email verification)
+// Register (using Supabase Auth with email verification) with proper validation
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, name, role, phone, teacherCode } = req.body;
 
-    if (!email || !password || !name || !role) {
-      return res.status(400).json({ error: 'All required fields must be filled' });
+    // Validate input
+    const validation = validate('registration', req.body);
+    if (!validation.isValid) {
+      logger.warn('Registration validation failed', {
+        email,
+        errors: validation.errors
+      });
+      return res.status(400).json({ error: validation.errors[0] });
     }
 
     // Validate teacher code if role is teacher
     if (role === 'teacher') {
-      if (!teacherCode) {
-        return res.status(400).json({ error: 'Teacher verification code is required' });
-      }
-
-      // Check if teacher code is valid
+      logger.info('Validating teacher code', { email, role });
+      
+      const codeStartTime = Date.now();
       const { data: codeData, error: codeError } = await supabase
         .from('teacher_verification_codes')
         .select('*')
         .eq('code', teacherCode)
         .eq('is_active', true)
         .single();
+      
+      const codeDuration = Date.now() - codeStartTime;
+      logger.database('SELECT', 'teacher_verification_codes', codeDuration, codeError);
 
       if (codeError || !codeData) {
+        logger.warn('Invalid teacher verification code', {
+          email,
+          teacherCode: teacherCode ? 'provided' : 'missing'
+        });
         return res.status(400).json({ error: 'Invalid teacher verification code. Please contact the school administration.' });
       }
       
       // Check if code has usage limit and if it's exceeded
       if (codeData.max_usage && codeData.usage_count >= codeData.max_usage) {
+        logger.warn('Teacher verification code expired', {
+          email,
+          codeId: codeData.id,
+          usageCount: codeData.usage_count,
+          maxUsage: codeData.max_usage
+        });
         return res.status(400).json({ error: 'Teacher verification code has expired. Please contact the school administration for a new code.' });
       }
     }
 
     // Use Supabase Auth to create user (will send verification email)
+    logger.info('Creating user with Supabase Auth', { email, role });
+    
+    const authStartTime = Date.now();
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -435,8 +743,15 @@ app.post('/api/auth/register', async (req, res) => {
         emailRedirectTo: FRONTEND_URL
       }
     });
+    
+    const authDuration = Date.now() - authStartTime;
+    logger.auth('REGISTER', authData?.user?.id, email, !authError, authError);
 
     if (authError) {
+      logger.error('Supabase Auth registration failed', {
+        email,
+        error: authError.message
+      });
       // Provide more specific error messages
       if (authError.message.includes('already been registered')) {
         return res.status(400).json({ error: 'This email is already registered. Please use a different email or login.' });
@@ -446,6 +761,13 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     // Create or update user profile in public.users table (using upsert)
+    logger.info('Creating user profile', { 
+      email, 
+      userId: authData.user.id,
+      role 
+    });
+    
+    const profileStartTime = Date.now();
     const { error: profileError } = await supabase
       .from('users')
       .upsert([
@@ -461,14 +783,27 @@ app.post('/api/auth/register', async (req, res) => {
         // Use a single unique column for conflict handling to match the DB constraint
         onConflict: 'email'
       });
+    
+    const profileDuration = Date.now() - profileStartTime;
+    logger.database('UPSERT', 'users', profileDuration, profileError);
 
     if (profileError) {
-      console.error('Error creating user profile:', profileError);
+      logger.error('Error creating user profile', {
+        email,
+        userId: authData.user.id,
+        error: profileError.message
+      });
       // Don't fail registration if profile creation fails
     }
 
     // If teacher, create teacher profile entry and update code usage
     if (role === 'teacher') {
+      logger.info('Creating teacher profile', { 
+        email, 
+        userId: authData.user.id
+      });
+      
+      const teacherProfileStartTime = Date.now();
       const { error: teacherProfileError } = await supabase
         .from('teacher_profiles')
         .insert([
@@ -477,21 +812,42 @@ app.post('/api/auth/register', async (req, res) => {
             display_order: 0
           }
         ]);
+      
+      const teacherProfileDuration = Date.now() - teacherProfileStartTime;
+      logger.database('INSERT', 'teacher_profiles', teacherProfileDuration, teacherProfileError);
 
       if (teacherProfileError) {
-        console.error('Error creating teacher profile:', teacherProfileError);
+        logger.error('Error creating teacher profile', {
+          email,
+          userId: authData.user.id,
+          error: teacherProfileError.message
+        });
       }
       
       // Update teacher code usage count
+      const codeUpdateStartTime = Date.now();
       const { error: codeUpdateError } = await supabase
         .from('teacher_verification_codes')
         .update({ usage_count: codeData.usage_count + 1 })
         .eq('code', teacherCode);
+      
+      const codeUpdateDuration = Date.now() - codeUpdateStartTime;
+      logger.database('UPDATE', 'teacher_verification_codes', codeUpdateDuration, codeUpdateError);
         
       if (codeUpdateError) {
-        console.error('Error updating teacher code usage:', codeUpdateError);
+        logger.error('Error updating teacher code usage', {
+          email,
+          code: teacherCode,
+          error: codeUpdateError.message
+        });
       }
     }
+
+    logger.info('✅ Registration successful', {
+      email,
+      userId: authData.user.id,
+      role
+    });
 
     res.json({ 
       success: true, 
@@ -499,14 +855,30 @@ app.post('/api/auth/register', async (req, res) => {
       emailSent: true
     });
   } catch (error) {
-    console.error('Error registering user:', error);
+    logger.error('Error registering user', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Registration failed. Please try again later.' });
   }
 });
 
-// Get teachers for public display
+// Get teachers for public display with caching
+let teachersCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 5 * 60 * 1000 // 5 minutes cache
+};
+
 app.get('/api/teachers', async (req, res) => {
   try {
+    // Check cache first
+    const now = Date.now();
+    if (teachersCache.data && (now - teachersCache.timestamp) < teachersCache.ttl) {
+      console.log('✅ Returning cached teachers data');
+      return res.json(teachersCache.data);
+    }
+    
     const { data, error } = await supabase
       .from('users')
       .select(`
@@ -547,6 +919,10 @@ app.get('/api/teachers', async (req, res) => {
       achievements: teacher.teacher_profiles?.[0]?.achievements
     }));
 
+    // Update cache
+    teachersCache.data = teachers;
+    teachersCache.timestamp = now;
+    
     res.json(teachers);
   } catch (error) {
     console.error('Error fetching teachers:', error);
@@ -597,9 +973,19 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Update user profile (protected)
-app.put('/api/profile', authenticateToken, upload.single('profile_photo'), async (req, res) => {
+// Update user profile (protected) with enhanced file upload
+app.put('/api/profile', authenticateToken, uploadProfilePhoto, async (req, res) => {
   try {
+    // Validate input
+    const validation = validate('profileUpdate', req.body);
+    if (!validation.isValid) {
+      logger.warn('Profile update validation failed', {
+        userId: req.user.id,
+        errors: validation.errors
+      });
+      return res.status(400).json({ error: validation.errors[0] });
+    }
+
     const {
       name,
       phone,
@@ -614,24 +1000,58 @@ app.put('/api/profile', authenticateToken, upload.single('profile_photo'), async
 
     // Handle file upload if present
     if (req.file) {
-      const fileName = `profile_${req.user.id}_${Date.now()}.${req.file.originalname.split('.').pop()}`;
+      logger.info('Processing profile photo upload', {
+        userId: req.user.id,
+        fileName: req.file.originalname,
+        fileSize: req.file.size
+      });
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('profile-photos')
-        .upload(fileName, req.file.buffer, {
-          contentType: req.file.mimetype
+      // Process image for optimization
+      const processStartTime = Date.now();
+      const processedImage = await processImage(req.file.buffer, IMAGE_PROCESSING_OPTIONS.profilePhotos);
+      const processDuration = Date.now() - processStartTime;
+      
+      logger.file('PROCESS', req.file.originalname, processDuration, 
+        processedImage.success ? null : new Error(processedImage.error));
+      
+      if (!processedImage.success) {
+        logger.error('Image processing error', {
+          userId: req.user.id,
+          error: processedImage.error
         });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        return res.status(400).json({ error: 'Failed to upload photo' });
+        return res.status(400).json({ error: 'Failed to process profile photo' });
       }
 
-      const { data: urlData } = supabase.storage
-        .from('profile-photos')
-        .getPublicUrl(fileName);
+      // Generate file name
+      const fileName = generateFileName(req.file.originalname, `profile_${req.user.id}_`);
+      
+      // Upload to Supabase Storage
+      const uploadStartTime = Date.now();
+      const uploadResult = await uploadToSupabase(
+        supabase, 
+        'profile-photos', 
+        fileName, 
+        processedImage.buffer, 
+        req.file.mimetype
+      );
+      const uploadDuration = Date.now() - uploadStartTime;
+      
+      logger.file('UPLOAD', fileName, uploadDuration, 
+        uploadResult.success ? null : new Error(uploadResult.error));
 
-      profile_photo_url = urlData.publicUrl;
+      if (!uploadResult.success) {
+        logger.error('Upload error', {
+          userId: req.user.id,
+          error: uploadResult.error
+        });
+        return res.status(400).json({ error: 'Failed to upload profile photo' });
+      }
+
+      profile_photo_url = uploadResult.url;
+      logger.info('Profile photo uploaded successfully', {
+        userId: req.user.id,
+        url: profile_photo_url
+      });
     }
 
     // Update user table
@@ -645,13 +1065,25 @@ app.put('/api/profile', authenticateToken, upload.single('profile_photo'), async
       updateData.profile_photo_url = profile_photo_url;
     }
 
+    logger.info('Updating user profile', {
+      userId: req.user.id,
+      fields: Object.keys(updateData)
+    });
+    
+    const updateStartTime = Date.now();
     const { error: userError } = await supabase
       .from('users')
       .update(updateData)
       .eq('id', req.user.id);
+    
+    const updateDuration = Date.now() - updateStartTime;
+    logger.database('UPDATE', 'users', updateDuration, userError);
 
     if (userError) {
-      console.error('User update error:', userError);
+      logger.error('User update error', {
+        userId: req.user.id,
+        error: userError.message
+      });
       return res.status(400).json({ error: 'Failed to update profile' });
     }
 
@@ -664,22 +1096,47 @@ app.put('/api/profile', authenticateToken, upload.single('profile_photo'), async
         achievements
       };
 
+      logger.info('Updating teacher profile', {
+        userId: req.user.id
+      });
+      
+      const teacherProfileStartTime = Date.now();
       const { error: profileError } = await supabase
         .from('teacher_profiles')
         .upsert({
           user_id: req.user.id,
           ...teacherProfileData
         });
+      
+      const teacherProfileDuration = Date.now() - teacherProfileStartTime;
+      logger.database('UPSERT', 'teacher_profiles', teacherProfileDuration, profileError);
 
       if (profileError) {
-        console.error('Teacher profile update error:', profileError);
+        logger.error('Teacher profile update error', {
+          userId: req.user.id,
+          error: profileError.message
+        });
         return res.status(400).json({ error: 'Failed to update teacher profile' });
       }
     }
 
+    // Clear profile cache
+    const cacheKey = `profile_${req.user.id}`;
+    if (typeof profileCache !== 'undefined') {
+      profileCache.delete(cacheKey);
+    }
+
+    logger.info('✅ Profile updated successfully', {
+      userId: req.user.id
+    });
+
     res.json({ success: true, message: 'Profile updated successfully' });
   } catch (error) {
-    console.error('Error updating profile:', error);
+    logger.error('Error updating profile', {
+      userId: req.user.id,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
@@ -766,6 +1223,22 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log(`🗑️ Starting account deletion for user ID: ${userId}`);
+
+    // Additional security check - require password confirmation for account deletion
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Password confirmation required for account deletion' });
+    }
+
+    // Verify password before proceeding with deletion
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: req.user.email,
+      password: password
+    });
+
+    if (authError) {
+      return res.status(401).json({ error: 'Invalid password. Account deletion cancelled.' });
+    }
 
     if (!supabaseAdmin) {
       console.error('❌ Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY configuration.');
@@ -908,11 +1381,13 @@ app.get('/api/check-user/:email', async (req, res) => {
 
 // ============= PROTECTED ROUTES (Teacher only) =============
 
-// Create notice (Admin only)
-app.post('/api/notices', authenticateToken, async (req, res) => {
+// Create notice (Teacher only) with validation
+app.post('/api/notices', authenticateToken, authorizeRole('teacher', 'admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    // Validate input
+    const validation = validate('noticeCreation', req.body);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: validation.errors[0] });
     }
 
     const { title_en, title_bn, content_en, content_bn, priority } = req.body;
@@ -940,65 +1415,128 @@ app.post('/api/notices', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload media
-app.post('/api/media', authenticateToken, upload.single('file'), async (req, res) => {
+// Upload media (Teacher only)
+app.post('/api/media', authenticateToken, authorizeRole('teacher', 'admin'), uploadMedia, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     const { title, description } = req.body;
     const file = req.file;
 
     if (!file) {
+      logger.warn('Media upload failed - no file provided', {
+        userId: req.user.id
+      });
       return res.status(400).json({ error: 'File is required' });
     }
 
-    // Upload file to Supabase Storage
-    const fileName = `${Date.now()}-${file.originalname}`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(fileName, file.buffer, {
-        contentType: file.mimetype
+    logger.info('Processing media upload', {
+      userId: req.user.id,
+      fileName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype
+    });
+
+    // Process image if it's an image file
+    let fileBuffer = file.buffer;
+    let fileMimeType = file.mimetype;
+    
+    if (file.mimetype.startsWith('image/')) {
+      logger.debug('Processing image file', {
+        userId: req.user.id,
+        fileName: file.originalname
       });
+      
+      const processStartTime = Date.now();
+      const processedImage = await processImage(file.buffer, IMAGE_PROCESSING_OPTIONS.media);
+      const processDuration = Date.now() - processStartTime;
+      
+      logger.file('PROCESS', file.originalname, processDuration, 
+        processedImage.success ? null : new Error(processedImage.error));
+      
+      if (processedImage.success) {
+        fileBuffer = processedImage.buffer;
+        // Update mime type if format changed
+        if (processedImage.info.format) {
+          fileMimeType = `image/${processedImage.info.format}`;
+        }
+      }
+    }
 
-    if (uploadError) throw uploadError;
+    // Generate file name
+    const fileName = generateFileName(file.originalname);
+    
+    // Upload to Supabase Storage
+    const uploadStartTime = Date.now();
+    const uploadResult = await uploadToSupabase(
+      supabase, 
+      'media', 
+      fileName, 
+      fileBuffer, 
+      fileMimeType
+    );
+    const uploadDuration = Date.now() - uploadStartTime;
+    
+    logger.file('UPLOAD', fileName, uploadDuration, 
+      uploadResult.success ? null : new Error(uploadResult.error));
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('media')
-      .getPublicUrl(fileName);
+    if (!uploadResult.success) {
+      throw new Error(uploadResult.error);
+    }
 
     // Save metadata to database
+    const fileType = file.mimetype.startsWith('image/') ? 'image' : 
+                   file.mimetype.startsWith('video/') ? 'video' : 'other';
+                   
+    logger.info('Saving media metadata', {
+      userId: req.user.id,
+      fileName,
+      fileType
+    });
+    
+    const dbStartTime = Date.now();
     const { data, error } = await supabase
       .from('media')
       .insert([
         {
           title,
           description,
-          url: publicUrl,
-          type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+          url: uploadResult.url,
+          type: fileType,
           date: new Date().toISOString(),
           uploaded_by: req.user.id
         }
       ]);
+    
+    const dbDuration = Date.now() - dbStartTime;
+    logger.database('INSERT', 'media', dbDuration, error);
 
     if (error) throw error;
 
+    // Clear media cache
+    if (typeof mediaCache !== 'undefined') {
+      mediaCache.data = null;
+      mediaCache.timestamp = 0;
+    }
+
+    logger.info('✅ Media uploaded successfully', {
+      userId: req.user.id,
+      mediaId: data?.[0]?.id,
+      url: uploadResult.url
+    });
+
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Error uploading media:', error);
+    logger.error('Error uploading media', {
+      userId: req.user.id,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to upload media' });
   }
 });
 
-// Delete notice
-app.delete('/api/notices/:id', authenticateToken, async (req, res) => {
+// Delete notice (Teacher only)
+app.delete('/api/notices/:id', authenticateToken, authorizeRole('teacher', 'admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     const { id } = req.params;
 
     const { error } = await supabase
@@ -1015,21 +1553,51 @@ app.delete('/api/notices/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete media
-app.delete('/api/media/:id', authenticateToken, async (req, res) => {
+// Delete media (Teacher only)
+app.delete('/api/media/:id', authenticateToken, authorizeRole('teacher', 'admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     const { id } = req.params;
 
-    const { error } = await supabase
+    // First get the media item to get the file path
+    const { data: mediaItem, error: fetchError } = await supabase
+      .from('media')
+      .select('url')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch media item: ${fetchError.message}`);
+    }
+
+    if (!mediaItem) {
+      return res.status(404).json({ error: 'Media item not found' });
+    }
+
+    // Extract file name from URL
+    const urlParts = mediaItem.url.split('/');
+    const fileName = urlParts[urlParts.length - 1];
+
+    // Delete from Supabase Storage
+    const deleteResult = await deleteFromSupabase(supabase, 'media', fileName);
+    
+    if (!deleteResult.success) {
+      console.warn('Failed to delete file from storage:', deleteResult.error);
+      // Continue with database deletion even if file deletion fails
+    }
+
+    // Delete from database
+    const { error: deleteError } = await supabase
       .from('media')
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (deleteError) throw deleteError;
+
+    // Clear media cache
+    if (typeof mediaCache !== 'undefined') {
+      mediaCache.data = null;
+      mediaCache.timestamp = 0;
+    }
 
     res.json({ success: true, message: 'Media deleted successfully' });
   } catch (error) {
@@ -1038,13 +1606,9 @@ app.delete('/api/media/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all contact submissions (Admin only)
-app.get('/api/contacts', authenticateToken, async (req, res) => {
+// Get all contact submissions (Teacher only)
+app.get('/api/contacts', authenticateToken, authorizeRole('teacher', 'admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     const { data, error } = await supabase
       .from('contacts')
       .select('*')
