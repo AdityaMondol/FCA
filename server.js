@@ -1152,6 +1152,13 @@ app.put('/api/profile', authenticateToken, uploadProfilePhoto, async (req, res) 
 app.put('/api/change-role', authenticateToken, async (req, res) => {
   try {
     const { role, teacherCode } = req.body;
+    let codeData = null;
+
+    logger.info('🔄 Role change request', {
+      userId: req.user.id,
+      currentRole: req.user.role,
+      requestedRole: role
+    });
 
     if (!role || !['student', 'guardian', 'teacher'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role specified' });
@@ -1163,25 +1170,36 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Teacher verification code is required' });
       }
 
-      const { data: codeData, error: codeError } = await supabase
+      logger.info('Validating teacher code for role change', { userId: req.user.id });
+      
+      const { data: code, error: codeError } = await supabase
         .from('teacher_verification_codes')
         .select('*')
         .eq('code', teacherCode)
         .eq('is_active', true)
         .single();
 
-      if (codeError || !codeData) {
+      if (codeError || !code) {
+        logger.warn('Invalid teacher code provided', { userId: req.user.id });
         return res.status(400).json({ error: 'Invalid teacher verification code. Please contact the school administration.' });
       }
       
+      codeData = code;
+      
       // Check if code has usage limit and if it's exceeded
       if (codeData.max_usage && codeData.usage_count >= codeData.max_usage) {
+        logger.warn('Teacher code expired', { userId: req.user.id, code: teacherCode });
         return res.status(400).json({ error: 'Teacher verification code has expired. Please contact the school administration for a new code.' });
       }
     }
 
+    // Use admin client if available, otherwise use regular client
+    const client = supabaseAdmin || supabase;
+    
     // Update user role
-    const { error: updateError } = await supabase
+    logger.info('Updating user role', { userId: req.user.id, newRole: role });
+    
+    const { error: updateError } = await client
       .from('users')
       .update({ 
         role,
@@ -1190,13 +1208,15 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
       .eq('id', req.user.id);
 
     if (updateError) {
-      console.error('Role update error:', updateError);
+      logger.error('Role update error', { userId: req.user.id, error: updateError.message });
       return res.status(400).json({ error: 'Failed to update role. Please try again later.' });
     }
 
     // If changing to teacher, create teacher profile
     if (role === 'teacher') {
-      const { error: profileError } = await supabase
+      logger.info('Creating teacher profile', { userId: req.user.id });
+      
+      const { error: profileError } = await client
         .from('teacher_profiles')
         .upsert({
           user_id: req.user.id,
@@ -1204,23 +1224,34 @@ app.put('/api/change-role', authenticateToken, async (req, res) => {
         });
 
       if (profileError) {
-        console.error('Teacher profile creation error:', profileError);
+        logger.error('Teacher profile creation error', { userId: req.user.id, error: profileError.message });
       }
       
       // Update teacher code usage count
-      const { error: codeUpdateError } = await supabase
-        .from('teacher_verification_codes')
-        .update({ usage_count: codeData.usage_count + 1 })
-        .eq('code', teacherCode);
-        
-      if (codeUpdateError) {
-        console.error('Error updating teacher code usage:', codeUpdateError);
+      if (codeData) {
+        const { error: codeUpdateError } = await client
+          .from('teacher_verification_codes')
+          .update({ usage_count: codeData.usage_count + 1 })
+          .eq('code', teacherCode);
+          
+        if (codeUpdateError) {
+          logger.error('Error updating teacher code usage', { error: codeUpdateError.message });
+        }
       }
     }
 
-    res.json({ success: true, message: 'Role updated successfully' });
+    logger.info('✅ Role changed successfully', { 
+      userId: req.user.id, 
+      newRole: role 
+    });
+
+    res.json({ success: true, message: 'Role updated successfully', newRole: role });
   } catch (error) {
-    console.error('Error changing role:', error);
+    logger.error('Error changing role', { 
+      userId: req.user.id, 
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to change role. Please try again later.' });
   }
 });
@@ -1231,25 +1262,13 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     console.log(`🗑️ Starting account deletion for user ID: ${userId}`);
 
-    // Additional security check - require password confirmation for account deletion
-    const { password } = req.body;
-    if (!password) {
-      return res.status(400).json({ error: 'Password confirmation required for account deletion' });
-    }
-
-    // Verify password before proceeding with deletion
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: req.user.email,
-      password: password
-    });
-
-    if (authError) {
-      return res.status(401).json({ error: 'Invalid password. Account deletion cancelled.' });
-    }
-
+    // Check if admin client is available
     if (!supabaseAdmin) {
       console.error('❌ Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY configuration.');
-      return res.status(500).json({ error: 'Server not configured for account deletion. Missing SUPABASE_SERVICE_ROLE_KEY.' });
+      return res.status(500).json({ 
+        error: 'Server configuration error. Please contact administrator.', 
+        details: 'SUPABASE_SERVICE_ROLE_KEY not configured' 
+      });
     }
 
     // First, verify the user exists using admin client
