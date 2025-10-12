@@ -104,18 +104,21 @@ class Logger {
     writeToFile(this.logFilePath, logMessage);
   }
 
-  // Log HTTP request
+  // Log HTTP request (only errors and important routes)
   http(req, res, duration) {
     if (!this.isLevelEnabled('INFO')) return;
+    
+    // Skip logging for successful requests to reduce noise
+    // Only log errors or slow requests
+    if (res.statusCode < 400 && duration < 1000) {
+      return;
+    }
     
     const meta = {
       method: req.method,
       url: req.url,
       statusCode: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('User-Agent'),
-      origin: req.get('Origin')
+      duration: `${duration}ms`
     };
     
     const message = `${req.method} ${req.url}`;

@@ -51,32 +51,21 @@ const supabaseKey = process.env.SUPABASE_KEY || 'your_supabase_key_here';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // MUST be service role key
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-logger.info('🔐 Supabase Configuration', {
-  url: supabaseUrl.substring(0, 30) + '...',
-  frontendUrl: FRONTEND_URL
-});
-
-if (!supabaseServiceRoleKey) {
-  logger.error('❌ SUPABASE_SERVICE_ROLE_KEY is NOT set. Admin operations (like delete account) will fail.');
-} else if (supabaseServiceRoleKey === supabaseKey) {
-  logger.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY appears to be the anon key. Please set the Service Role key for admin operations.');
-}
-
+// Supabase Configuration
 const supabase = createClient(supabaseUrl, supabaseKey);
-// Admin client with service role key - bypasses RLS for administrative operations
 const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey) : null;
 
-// Test database connection
-logger.info('🔌 Testing database connection...');
+// Silent background database connection test
 supabase
   .from('users')
   .select('count')
   .then(({ data, error }) => {
-    if (error) {
-      logger.error('❌ Database connection failed', { error: error.message });
-    } else {
-      logger.info('✅ Database connection successful');
+    if (!error) {
+      console.log(`  \x1b[32m✓\x1b[0m Database connected`);
     }
+  })
+  .catch(() => {
+    // Silently handle connection issues
   });
 
 // Middleware
@@ -97,40 +86,9 @@ app.use(express.urlencoded({ extended: true }));
 // Apply HTTP logging middleware
 app.use(httpLogger);
 
-// Request logging middleware
+// Minimal request logging middleware
 app.use((req, res, next) => {
-  const userAgent = req.get('User-Agent') || 'Unknown';
-  const origin = req.get('Origin') || 'Direct';
-  
-  // Log additional details for better debugging
-  logger.debug('📥 Request received', {
-    method: req.method,
-    path: req.path,
-    origin,
-    userAgent: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : '')
-  });
-  
-  // Log request body for POST/PUT requests (limit size for readability)
-  if ((req.method === 'POST' || req.method === 'PUT') && req.body && Object.keys(req.body).length > 0) {
-    const bodyKeys = Object.keys(req.body);
-    logger.debug('📦 Request body', {
-      method: req.method,
-      path: req.path,
-      keys: bodyKeys,
-      bodySize: JSON.stringify(req.body).length
-    });
-  }
-  
-  // Log query parameters if present
-  if (Object.keys(req.query).length > 0) {
-    logger.debug('🔍 Query parameters', {
-      method: req.method,
-      path: req.path,
-      queryKeys: Object.keys(req.query)
-    });
-  }
-  
-  // Mark request start time
+  // Mark request start time for performance tracking
   req._startTime = Date.now();
   next();
 });
