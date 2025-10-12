@@ -4,7 +4,9 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { validate } = require('../utils/validate');
 const { logger } = require('../utils/log');
-const { authenticateToken, authorizeRole } = require('../utils/auth');
+const auth = require('../utils/auth');
+const protect = auth.sessionMiddleware;
+const authorize = auth.roleMiddleware;
 const { uploadProfilePhoto, processImage, generateFileName, uploadToSupabase, IMAGE_PROCESSING_OPTIONS } = require('../utils/upload');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -14,7 +16,7 @@ const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY ? createClient(supab
 
 
 // Get user profile (protected)
-router.get('/profile', authenticateToken, async (req, res) => {
+router.get('/profile', protect, async (req, res) => {
   try {
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -57,7 +59,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 });
 
 // Update user profile (protected) with enhanced file upload
-router.put('/profile', authenticateToken, uploadProfilePhoto, async (req, res) => {
+router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
   try {
     // Validate input
     const validation = validate('profileUpdate', req.body);
@@ -225,7 +227,7 @@ router.put('/profile', authenticateToken, uploadProfilePhoto, async (req, res) =
 });
 
 // Change user role (protected)
-router.put('/change-role', authenticateToken, async (req, res) => {
+router.put('/change-role', protect, async (req, res) => {
   try {
     const { role, teacherCode } = req.body;
     let codeData = null;
@@ -333,7 +335,7 @@ router.put('/change-role', authenticateToken, async (req, res) => {
 });
 
 // Delete user account (protected)
-router.delete('/delete-account', authenticateToken, async (req, res) => {
+router.delete('/delete-account', protect, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log(`🗑️ Starting account deletion for user ID: ${userId}`);

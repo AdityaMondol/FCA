@@ -4,7 +4,9 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { validate } = require('../utils/validate');
 const { logger } = require('../utils/log');
-const { authenticateToken, authorizeRole } = require('../utils/auth');
+const auth = require('../utils/auth');
+const authenticateToken = auth.sessionMiddleware;
+const authorizeRole = auth.roleMiddleware;
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;

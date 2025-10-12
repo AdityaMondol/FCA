@@ -236,6 +236,11 @@ const uploadMiddlewares = {
   })
 };
 
+// Ready-to-use middleware functions
+const uploadProfilePhoto = uploadMiddlewares.profilePhoto.single('profile_photo');
+const uploadMedia = uploadMiddlewares.media.single('file');
+const uploadDocument = uploadMiddlewares.document.single('document');
+
 module.exports = {
   ALLOWED_FILE_TYPES,
   FILE_SIZE_LIMITS,
@@ -251,5 +256,8 @@ module.exports = {
   generateFileName,
   uploadToSupabase,
   deleteFromSupabase,
-  uploadMiddlewares
+  uploadMiddlewares,
+  uploadProfilePhoto,
+  uploadMedia,
+  uploadDocument
 };
