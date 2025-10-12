@@ -10,12 +10,12 @@ const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
 // Session configuration
 const SESSION_CONFIG = {
-  maxConcurrentSessions: 5, // Maximum number of concurrent sessions per user
-  sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-  refreshTokenTimeout: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
+  maxConcurrentSessions: 10, // Maximum number of concurrent sessions per user
+  sessionTimeout: 30 * 60 * 1000, // 30 minutes in milliseconds
+  refreshTokenTimeout: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
 };
 
-// In-memory session store (in production, use Redis or database)
+// In-memory session store (lightweight and fast)
 const sessionStore = new Map();
 
 // Generate JWT token
