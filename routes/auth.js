@@ -102,6 +102,7 @@ router.post('/login', async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, role, phone, teacherCode } = req.body;
+    let codeData = null; // Declare at function scope
 
     // Validate input
     const validation = validate('registration', req.body);
@@ -118,12 +119,14 @@ router.post('/register', async (req, res) => {
       logger.info('Validating teacher code', { email, role });
       
       const codeStartTime = Date.now();
-      const { data: codeData, error: codeError } = await supabase
+      const { data: fetchedCodeData, error: codeError } = await supabase
         .from('teacher_verification_codes')
         .select('*')
         .eq('code', teacherCode)
         .eq('is_active', true)
         .single();
+      
+      codeData = fetchedCodeData; // Assign to function-scoped variable
       
       const codeDuration = Date.now() - codeStartTime;
       logger.database('SELECT', 'teacher_verification_codes', codeDuration, codeError);
@@ -227,15 +230,17 @@ router.post('/register', async (req, res) => {
       const teacherProfileStartTime = Date.now();
       const { error: teacherProfileError } = await supabase
         .from('teacher_profiles')
-        .insert([
+        .upsert([
           {
             user_id: authData.user.id,
             display_order: 0
           }
-        ]);
+        ], {
+          onConflict: 'user_id'
+        });
       
       const teacherProfileDuration = Date.now() - teacherProfileStartTime;
-      logger.database('INSERT', 'teacher_profiles', teacherProfileDuration, teacherProfileError);
+      logger.database('UPSERT', 'teacher_profiles', teacherProfileDuration, teacherProfileError);
 
       if (teacherProfileError) {
         logger.error('Error creating teacher profile', {
@@ -246,21 +251,23 @@ router.post('/register', async (req, res) => {
       }
       
       // Update teacher code usage count
-      const codeUpdateStartTime = Date.now();
-      const { error: codeUpdateError } = await supabase
-        .from('teacher_verification_codes')
-        .update({ usage_count: codeData.usage_count + 1 })
-        .eq('code', teacherCode);
-      
-      const codeUpdateDuration = Date.now() - codeUpdateStartTime;
-      logger.database('UPDATE', 'teacher_verification_codes', codeUpdateDuration, codeUpdateError);
+      if (codeData) {
+        const codeUpdateStartTime = Date.now();
+        const { error: codeUpdateError } = await supabase
+          .from('teacher_verification_codes')
+          .update({ usage_count: codeData.usage_count + 1 })
+          .eq('code', teacherCode);
         
-      if (codeUpdateError) {
-        logger.error('Error updating teacher code usage', {
-          email,
-          code: teacherCode,
-          error: codeUpdateError.message
-        });
+        const codeUpdateDuration = Date.now() - codeUpdateStartTime;
+        logger.database('UPDATE', 'teacher_verification_codes', codeUpdateDuration, codeUpdateError);
+          
+        if (codeUpdateError) {
+          logger.error('Error updating teacher code usage', {
+            email,
+            code: teacherCode,
+            error: codeUpdateError.message
+          });
+        }
       }
     }
 
