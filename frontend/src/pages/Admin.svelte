@@ -35,8 +35,8 @@
   };
 
   onMount(async () => {
-    // Check if user is logged in and is admin
-    if (!authState.isAuthenticated || authState.user?.role !== 'admin') {
+    // Check if user is logged in and is admin or teacher
+    if (!authState.isAuthenticated || !['admin', 'teacher'].includes(authState.user?.role)) {
       navigate('/login');
       return;
     }

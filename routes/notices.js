@@ -15,30 +15,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Get all notices (requires authentication)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    // Add pagination support
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-    
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('notices')
-      .select('*', { count: 'exact' })
-      .order('date', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .select('*')
+      .order('date', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      logger.error('Error fetching notices from database', { error: error.message });
+      throw error;
+    }
 
-    res.json({
-      data: data || [],
-      pagination: {
-        page,
-        limit,
-        total: count,
-        totalPages: Math.ceil(count / limit)
-      }
-    });
+    res.json(data || []);
   } catch (error) {
-    console.error('Error fetching notices:', error);
+    logger.error('Error fetching notices', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to fetch notices' });
   }
 });
@@ -72,7 +61,11 @@ router.post('/', authenticateToken, authorizeRole('teacher', 'admin'), async (re
 
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Error creating notice:', error);
+    logger.error('Error creating notice', { 
+      userId: req.user?.id,
+      error: error.message, 
+      stack: error.stack 
+    });
     res.status(500).json({ error: 'Failed to create notice' });
   }
 });
@@ -91,7 +84,12 @@ router.delete('/:id', authenticateToken, authorizeRole('teacher', 'admin'), asyn
 
     res.json({ success: true, message: 'Notice deleted successfully' });
   } catch (error) {
-    console.error('Error deleting notice:', error);
+    logger.error('Error deleting notice', { 
+      userId: req.user?.id,
+      noticeId: req.params.id,
+      error: error.message, 
+      stack: error.stack 
+    });
     res.status(500).json({ error: 'Failed to delete notice' });
   }
 });

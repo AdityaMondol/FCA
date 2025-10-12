@@ -201,6 +201,7 @@ router.post('/register', async (req, res) => {
           name,
           role,
           phone: phone || null,
+          is_active: true, // Ensure user is active by default
           verification_code_used: role === 'teacher' ? teacherCode : null
         }
       ], {
@@ -269,6 +270,11 @@ router.post('/register', async (req, res) => {
           });
         }
       }
+      
+      // Clear teachers cache so new teacher appears immediately
+      const cache = require('../utils/cache');
+      await cache.del('teachers');
+      logger.info('Cleared teachers list cache (new teacher registered)');
     }
 
     logger.info('✅ Registration successful', {

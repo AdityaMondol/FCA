@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { logger } = require('../utils/log');
 const cache = require('../utils/cache');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -15,7 +16,7 @@ router.get('/', async (req, res) => {
     // Check cache first
     const cachedTeachers = await cache.get(CACHE_KEY);
     if (cachedTeachers) {
-      console.log('✅ Returning cached teachers data');
+      logger.debug('✅ Returning cached teachers data');
       return res.json(cachedTeachers);
     }
     
@@ -41,7 +42,7 @@ router.get('/', async (req, res) => {
       .order('teacher_profiles.display_order', { ascending: true });
 
     if (error) {
-      console.error('Error fetching teachers:', error);
+      logger.error('Error fetching teachers', { error: error.message, stack: error.stack });
       return res.status(500).json({ error: 'Failed to fetch teachers' });
     }
 
@@ -64,7 +65,7 @@ router.get('/', async (req, res) => {
     
     res.json(teachers);
   } catch (error) {
-    console.error('Error fetching teachers:', error);
+    logger.error('Error fetching teachers', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to fetch teachers' });
   }
 });

@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
@@ -122,7 +121,7 @@ router.get('/check-user/:email', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error checking user:', error);
+    logger.error('Error checking user', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to check user' });
   }
 });

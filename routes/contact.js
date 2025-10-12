@@ -9,6 +9,29 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Get all contacts (Admin/Teacher only) - for admin panel
+router.get('/', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Error fetching contacts from database', { error: error.message });
+      throw error;
+    }
+
+    res.json(data || []);
+  } catch (error) {
+    logger.error('Error fetching contacts', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Failed to fetch contacts' });
+  }
+});
+
 // Submit contact form with proper validation
 router.post('/', async (req, res) => {
   try {

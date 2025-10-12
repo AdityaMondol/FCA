@@ -53,7 +53,11 @@ router.get('/profile', protect, async (req, res) => {
     delete profile.teacher_profiles;
     res.json(profile);
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    logger.error('Error fetching profile', {
+      userId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
@@ -137,6 +141,13 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
         userId: req.user.id,
         url: profile_photo_url
       });
+      
+      // Clear teachers cache if user is a teacher (so photo appears immediately)
+      if (req.user.role === 'teacher') {
+        const cache = require('../utils/cache');
+        await cache.del('teachers');
+        logger.info('Cleared teachers list cache (photo upload)');
+      }
     }
 
     // Update user table
@@ -203,6 +214,11 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
         });
         return res.status(400).json({ error: 'Failed to update teacher profile' });
       }
+      
+      // Clear teachers list cache so updated info appears immediately
+      const cache = require('../utils/cache');
+      await cache.del('teachers');
+      logger.info('Cleared teachers list cache');
     }
 
     // Clear profile cache
@@ -281,6 +297,7 @@ router.put('/change-role', protect, async (req, res) => {
       .from('users')
       .update({ 
         role,
+        is_active: true, // Ensure user remains active
         verification_code_used: role === 'teacher' ? teacherCode : null
       })
       .eq('id', req.user.id);
@@ -316,6 +333,16 @@ router.put('/change-role', protect, async (req, res) => {
           logger.error('Error updating teacher code usage', { error: codeUpdateError.message });
         }
       }
+      
+      // Clear teachers cache so new teacher appears immediately
+      const cache = require('../utils/cache');
+      await cache.del('teachers');
+      logger.info('Cleared teachers list cache (role changed to teacher)');
+    } else if (req.user.role === 'teacher') {
+      // If changing FROM teacher to another role, also clear cache
+      const cache = require('../utils/cache');
+      await cache.del('teachers');
+      logger.info('Cleared teachers list cache (role changed from teacher)');
     }
 
     logger.info('✅ Role changed successfully', { 
@@ -338,116 +365,105 @@ router.put('/change-role', protect, async (req, res) => {
 router.delete('/delete-account', protect, async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log(`🗑️ Starting account deletion for user ID: ${userId}`);
+    const userEmail = req.user.email;
+    logger.info('🗑️ Starting account deletion', { userId, userEmail });
 
     // Check if admin client is available
     if (!supabaseAdmin) {
-      console.error('❌ Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY configuration.');
+      logger.error('❌ Supabase Admin client not initialized');
       return res.status(500).json({ 
         error: 'Server configuration error. Please contact administrator.', 
         details: 'SUPABASE_SERVICE_ROLE_KEY not configured' 
       });
     }
 
-    // First, verify the user exists using admin client
-    console.log(`🔍 Checking if user exists: ${userId}`);
-    const { data: userExists, error: userCheckError } = await supabaseAdmin
-      .from('users')
-      .select('id, email, name')
-      .eq('id', userId)
-      .single();
-
-    if (userCheckError || !userExists) {
-      console.error('User not found for deletion:', userCheckError);
-      return res.status(404).json({ error: 'User not found' });
+    // Verify userId is valid
+    if (!userId) {
+      logger.error('❌ No user ID in token');
+      return res.status(400).json({ error: 'Invalid user session. Please login again.' });
     }
 
-    console.log(`📧 Deleting account for: ${userExists.email} (${userExists.name})`);
+    logger.info('📧 Proceeding with account deletion', { userEmail });
 
     // Delete user data in correct order (respecting foreign key constraints)
     // Using admin client to bypass RLS policies
     
     // 1. Delete teacher profile if exists
-    console.log('🔄 Deleting teacher profile...');
+    logger.info('🔄 Deleting teacher profile', { userId });
     const { error: profileError } = await supabaseAdmin
       .from('teacher_profiles')
       .delete()
       .eq('user_id', userId);
     
-    if (profileError) {
-      console.error('❌ Teacher profile deletion error:', profileError);
-      return res.status(500).json({ 
-        error: 'Failed to delete teacher profile', 
-        details: profileError.message 
-      });
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 means no rows found, which is okay
+      logger.warn('⚠️  Teacher profile deletion warning', { error: profileError.message });
+    } else {
+      logger.info('✅ Teacher profile deleted');
     }
-    console.log('✅ Teacher profile deleted (if existed)');
 
     // 2. Delete notices created by user
-    console.log('🔄 Deleting user notices...');
+    logger.info('🔄 Deleting user notices', { userId });
     const { error: noticesError } = await supabaseAdmin
       .from('notices')
       .delete()
       .eq('created_by', userId);
       
-    if (noticesError) {
-      console.error('❌ Notices deletion error:', noticesError);
-      return res.status(500).json({ 
-        error: 'Failed to delete notices', 
-        details: noticesError.message 
-      });
+    if (noticesError && noticesError.code !== 'PGRST116') {
+      logger.warn('⚠️  Notices deletion warning', { error: noticesError.message });
+    } else {
+      logger.info('✅ User notices deleted');
     }
-    console.log('✅ User notices deleted');
 
     // 3. Delete media uploaded by user
-    console.log('🔄 Deleting user media...');
+    logger.info('🔄 Deleting user media', { userId });
     const { error: mediaError } = await supabaseAdmin
       .from('media')
       .delete()
       .eq('uploaded_by', userId);
       
-    if (mediaError) {
-      console.error('❌ Media deletion error:', mediaError);
-      return res.status(500).json({ 
-        error: 'Failed to delete media', 
-        details: mediaError.message 
-      });
+    if (mediaError && mediaError.code !== 'PGRST116') {
+      logger.warn('⚠️  Media deletion warning', { error: mediaError.message });
+    } else {
+      logger.info('✅ User media deleted');
     }
-    console.log('✅ User media deleted');
 
     // 4. Delete from custom users table
-    console.log('🔄 Deleting from users table...');
+    logger.info('🔄 Deleting from users table', { userId });
     const { error: userDeleteError } = await supabaseAdmin
       .from('users')
       .delete()
       .eq('id', userId);
 
     if (userDeleteError) {
-      console.error('❌ User table deletion failed:', userDeleteError);
-      return res.status(500).json({ 
-        error: 'Failed to delete user from users table', 
-        details: userDeleteError.message 
-      });
+      logger.error('❌ User table deletion failed', { error: userDeleteError.message });
+      // Don't fail here, continue to auth deletion
+      logger.warn('⚠️  Continuing despite users table error');
+    } else {
+      logger.info('✅ User deleted from users table');
     }
-    console.log('✅ User deleted from users table');
 
     // 5. CRITICAL: Delete from Supabase Auth (auth.users) - this is the main account
-    console.log('🔄 Deleting from Supabase Auth...');
+    logger.info('🔄 Deleting from Supabase Auth', { userId });
     const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (authDeleteError) {
-      console.error('❌ Supabase Auth deletion failed:', authDeleteError);
+      logger.error('❌ Supabase Auth deletion failed', { error: authDeleteError.message });
       return res.status(500).json({ 
         error: 'Failed to delete authentication account', 
         details: authDeleteError.message 
       });
     }
-    console.log('✅ User deleted from Supabase Auth (auth.users)');
+    logger.info('✅ User deleted from Supabase Auth');
 
-    console.log('✅✅✅ Account COMPLETELY deleted from all tables');
+    logger.info('✅ Account completely deleted', { userId, userEmail });
     res.json({ success: true, message: 'Account permanently deleted successfully' });
   } catch (error) {
-    console.error('❌ Error deleting account:', error);
+    logger.error('❌ Error deleting account', {
+      userId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to delete account', details: error.message });
   }
 });

@@ -13,33 +13,22 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Get all media items with pagination
+// Get all media items
 router.get('/', async (req, res) => {
   try {
-    // Add pagination support
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
-    const offset = (page - 1) * limit;
-    
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('media')
-      .select('*', { count: 'exact' })
-      .order('date', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .select('*')
+      .order('date', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      logger.error('Error fetching media from database', { error: error.message });
+      throw error;
+    }
 
-    res.json({
-      data: data || [],
-      pagination: {
-        page,
-        limit,
-        total: count,
-        totalPages: Math.ceil(count / limit)
-      }
-    });
+    res.json(data || []);
   } catch (error) {
-    console.error('Error fetching media:', error);
+    logger.error('Error fetching media', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to fetch media' });
   }
 });
@@ -191,7 +180,10 @@ router.delete('/:id', authenticateToken, authorizeRole('teacher', 'admin'), asyn
     const deleteResult = await deleteFromSupabase(supabase, 'media', fileName);
     
     if (!deleteResult.success) {
-      console.warn('Failed to delete file from storage:', deleteResult.error);
+      logger.warn('Failed to delete file from storage', { 
+        error: deleteResult.error,
+        fileName
+      });
       // Continue with database deletion even if file deletion fails
     }
 
@@ -211,7 +203,12 @@ router.delete('/:id', authenticateToken, authorizeRole('teacher', 'admin'), asyn
 
     res.json({ success: true, message: 'Media deleted successfully' });
   } catch (error) {
-    console.error('Error deleting media:', error);
+    logger.error('Error deleting media', { 
+      userId: req.user?.id,
+      mediaId: req.params.id,
+      error: error.message, 
+      stack: error.stack 
+    });
     res.status(500).json({ error: 'Failed to delete media' });
   }
 });
