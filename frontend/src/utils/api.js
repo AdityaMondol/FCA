@@ -1,8 +1,9 @@
 // API Client with caching and error handling
 import { API_URL } from '../config';
+import { auth } from '../stores/authStore';
+import { get } from 'svelte/store';
 
-class ApiClient {
-  constructor() {
+class ApiClient {  constructor() {
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
   }
@@ -46,6 +47,12 @@ class ApiClient {
       const defaultHeaders = {
         'Content-Type': 'application/json',
       };
+
+      // Get token from auth store
+      const { session } = get(auth);
+      if (session && session.access_token) {
+        defaultHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      }
 
       // Merge headers
       const headers = {

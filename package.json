@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
-    "preview": "cd frontend && npm run preview"
+    "preview": "cd frontend && npm run preview",
+    "test": "jest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
@@ -19,9 +20,12 @@
     "express-rate-limit": "^6.7.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "redis": "^5.8.3",
     "sharp": "^0.32.6"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.1",
+    "supertest": "^7.1.4"
   }
 }
