@@ -99,6 +99,66 @@ const hasPermissionLevel = (user, requiredRole) => {
   return userLevel >= requiredLevel;
 };
 
+// Session middleware - Authentication middleware
+const sessionMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        code: ERROR_CODES.AUTH_REQUIRED 
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    try {
+      const decoded = verifyToken(token);
+      req.user = decoded;
+      next();
+    } catch (error) {
+      logger.warn('Token verification failed', { error: error.message });
+      return res.status(401).json({ 
+        error: error.message || 'Invalid or expired token',
+        code: ERROR_CODES.AUTH_REQUIRED 
+      });
+    }
+  } catch (error) {
+    logger.error('Session middleware error', { error: error.message });
+    return res.status(500).json({ 
+      error: 'Authentication error',
+      code: ERROR_CODES.SERVER_ERROR 
+    });
+  }
+};
+
+// Role middleware - Authorization middleware
+const roleMiddleware = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        code: ERROR_CODES.AUTH_REQUIRED 
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      logger.warn('Access denied', { 
+        userId: req.user.id,
+        userRole: req.user.role,
+        allowedRoles 
+      });
+      return res.status(403).json({ 
+        error: 'Access denied. Insufficient permissions.',
+        code: ERROR_CODES.FORBIDDEN 
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   generateToken,
   generateRefreshToken,
@@ -107,5 +167,7 @@ module.exports = {
   comparePassword,
   hasPermission,
   hasPermissionLevel,
+  sessionMiddleware,
+  roleMiddleware,
   SESSION_CONFIG
 };
