@@ -155,7 +155,7 @@ const contactRoutes = require('./routes/contact');
 const mainRoutes = require('./routes/main');
 
 app.use('/api/auth', authRoutes);
-app.use('/api', usersRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api/notices', noticesRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/teachers', teachersRoutes);

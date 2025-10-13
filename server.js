@@ -1,6 +1,10 @@
 const cluster = require('cluster');
 const os = require('os');
+const dotenv = require('dotenv');
 const { logger } = require('./utils/log');
+
+// Load environment variables
+dotenv.config();
 
 const numCPUs = os.cpus().length;
 
