@@ -2,6 +2,7 @@
   import { navigate } from 'svelte-routing';
   import { currentLanguage, translations } from '../stores/languageStore';
   import { login } from '../stores/authStore';
+  import { AppError, ERROR_CODES } from '../utils/error';
   
   let t;
   $: t = translations[$currentLanguage];
@@ -28,7 +29,7 @@
       // Add timeout to prevent infinite spinning (increased to 45s for slow connections/cold starts)
       const loginPromise = login(email, password);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Login timeout')), 45000)
+        setTimeout(() => reject(new AppError('Login timeout', ERROR_CODES.TIMEOUT_ERROR)), 30000)
       );
       
       const result = await Promise.race([loginPromise, timeoutPromise]);

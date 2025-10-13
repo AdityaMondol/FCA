@@ -30,10 +30,7 @@ CREATE TABLE IF NOT EXISTS teacher_verification_codes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert default teacher verification code
-INSERT INTO teacher_verification_codes (code) 
-VALUES ('FCA2025') 
-ON CONFLICT (code) DO NOTHING;
+
 
 -- Create enhanced Notices table
 CREATE TABLE IF NOT EXISTS notices (

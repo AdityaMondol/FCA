@@ -4,6 +4,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { validate } = require('../utils/validate');
 const { logger } = require('../utils/log');
+const { AppError, ERROR_CODES } = require('../utils/error');
 const auth = require('../utils/auth');
 const authenticateToken = auth.sessionMiddleware;
 const authorizeRole = auth.roleMiddleware;
@@ -68,7 +69,7 @@ router.post('/', authenticateToken, authorizeRole('teacher', 'admin'), uploadMed
       const processDuration = Date.now() - processStartTime;
       
       logger.file('PROCESS', file.originalname, processDuration, 
-        processedImage.success ? null : new Error(processedImage.error));
+        processedImage.success ? null : new AppError(processedImage.error, ERROR_CODES.UNPROCESSABLE_ENTITY));
       
       if (processedImage.success) {
         fileBuffer = processedImage.buffer;
@@ -94,10 +95,10 @@ router.post('/', authenticateToken, authorizeRole('teacher', 'admin'), uploadMed
     const uploadDuration = Date.now() - uploadStartTime;
     
     logger.file('UPLOAD', fileName, uploadDuration, 
-      uploadResult.success ? null : new Error(uploadResult.error));
+      uploadResult.success ? null : new AppError(uploadResult.error, ERROR_CODES.UPLOAD_FAILED));
 
     if (!uploadResult.success) {
-      throw new Error(uploadResult.error);
+      throw new AppError(uploadResult.error, ERROR_CODES.UPLOAD_FAILED);
     }
 
     // Save metadata to database
@@ -165,7 +166,7 @@ router.delete('/:id', authenticateToken, authorizeRole('teacher', 'admin'), asyn
       .single();
 
     if (fetchError) {
-      throw new Error(`Failed to fetch media item: ${fetchError.message}`);
+      throw new AppError(`Failed to fetch media item: ${fetchError.message}`, ERROR_CODES.NOT_FOUND);
     }
 
     if (!mediaItem) {

@@ -4,6 +4,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { validate } = require('../utils/validate');
 const { logger } = require('../utils/log');
+const { AppError, ERROR_CODES } = require('../utils/error');
 const auth = require('../utils/auth');
 const protect = auth.sessionMiddleware;
 const authorize = auth.roleMiddleware;
@@ -38,7 +39,8 @@ router.get('/profile', protect, async (req, res) => {
       .single();
 
     if (userError) {
-      return res.status(404).json({ error: 'User not found' });
+      logger.warn('User not found in database', { userId: req.user.id, error: userError.message });
+      return res.status(404).json({ error: 'User profile not found. It may have been deleted or the ID is incorrect.' });
     }
 
     // Flatten teacher profile data
@@ -58,7 +60,7 @@ router.get('/profile', protect, async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    res.status(500).json({ error: 'Failed to fetch profile' });
+    res.status(500).json({ error: 'An unexpected error occurred while fetching your profile. Please try again later.' });
   }
 });
 
@@ -101,14 +103,14 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
       const processDuration = Date.now() - processStartTime;
       
       logger.file('PROCESS', req.file.originalname, processDuration, 
-        processedImage.success ? null : new Error(processedImage.error));
+        processedImage.success ? null : new AppError(processedImage.error, ERROR_CODES.UNPROCESSABLE_ENTITY));
       
       if (!processedImage.success) {
         logger.error('Image processing error', {
           userId: req.user.id,
           error: processedImage.error
         });
-        return res.status(400).json({ error: 'Failed to process profile photo' });
+        return res.status(400).json({ error: 'The provided profile photo could not be processed. Please ensure it is a valid image file.' });
       }
 
       // Generate file name
@@ -126,14 +128,14 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
       const uploadDuration = Date.now() - uploadStartTime;
       
       logger.file('UPLOAD', fileName, uploadDuration, 
-        uploadResult.success ? null : new Error(uploadResult.error));
+        uploadResult.success ? null : new AppError(uploadResult.error, ERROR_CODES.UPLOAD_FAILED));
 
       if (!uploadResult.success) {
         logger.error('Upload error', {
           userId: req.user.id,
           error: uploadResult.error
         });
-        return res.status(400).json({ error: 'Failed to upload profile photo' });
+        return res.status(400).json({ error: 'The profile photo could not be uploaded. Please try again later.' });
       }
 
       profile_photo_url = uploadResult.url;
@@ -180,7 +182,7 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
         userId: req.user.id,
         error: userError.message
       });
-      return res.status(400).json({ error: 'Failed to update profile' });
+      return res.status(400).json({ error: 'There was a problem updating your profile. Please check the provided data and try again.' });
     }
 
     // Update teacher profile if user is a teacher
@@ -212,7 +214,7 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
           userId: req.user.id,
           error: profileError.message
         });
-        return res.status(400).json({ error: 'Failed to update teacher profile' });
+        return res.status(400).json({ error: 'There was a problem updating your teacher profile. Please check the provided data and try again.' });
       }
       
       // Clear teachers list cache so updated info appears immediately
@@ -238,7 +240,7 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    res.status(500).json({ error: 'Failed to update profile' });
+    res.status(500).json({ error: 'An unexpected error occurred while updating your profile. Please try again later.' });
   }
 });
 
@@ -255,13 +257,13 @@ router.put('/change-role', protect, async (req, res) => {
     });
 
     if (!role || !['student', 'guardian', 'teacher'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role specified' });
+      return res.status(400).json({ error: 'The selected role is not valid. Please choose from student, guardian, or teacher.' });
     }
 
     // Validate teacher code if changing to teacher
     if (role === 'teacher') {
       if (!teacherCode) {
-        return res.status(400).json({ error: 'Teacher verification code is required' });
+        return res.status(400).json({ error: 'A teacher verification code is required to become a teacher.' });
       }
 
       logger.info('Validating teacher code for role change', { userId: req.user.id });
@@ -275,7 +277,7 @@ router.put('/change-role', protect, async (req, res) => {
 
       if (codeError || !code) {
         logger.warn('Invalid teacher code provided', { userId: req.user.id });
-        return res.status(400).json({ error: 'Invalid teacher verification code. Please contact the school administration.' });
+        return res.status(400).json({ error: 'The provided teacher verification code is invalid or has expired. Please contact the school administration for assistance.' });
       }
       
       codeData = code;
@@ -283,7 +285,7 @@ router.put('/change-role', protect, async (req, res) => {
       // Check if code has usage limit and if it's exceeded
       if (codeData.max_usage && codeData.usage_count >= codeData.max_usage) {
         logger.warn('Teacher code expired', { userId: req.user.id, code: teacherCode });
-        return res.status(400).json({ error: 'Teacher verification code has expired. Please contact the school administration for a new code.' });
+        return res.status(400).json({ error: 'The provided teacher verification code has reached its maximum usage limit. Please contact the school administration for a new code.' });
       }
     }
 
@@ -304,7 +306,7 @@ router.put('/change-role', protect, async (req, res) => {
 
     if (updateError) {
       logger.error('Role update error', { userId: req.user.id, error: updateError.message });
-      return res.status(400).json({ error: 'Failed to update role. Please try again later.' });
+      return res.status(500).json({ error: 'There was a problem updating your role. Please try again later.' });
     }
 
     // If changing to teacher, create teacher profile
@@ -357,7 +359,7 @@ router.put('/change-role', protect, async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    res.status(500).json({ error: 'Failed to change role. Please try again later.' });
+    res.status(500).json({ error: 'An unexpected error occurred while changing your role. Please try again later.' });
   }
 });
 
@@ -366,21 +368,22 @@ router.delete('/delete-account', protect, async (req, res) => {
   try {
     const userId = req.user.id;
     const userEmail = req.user.email;
+    const userRole = req.user.role;
     logger.info('🗑️ Starting account deletion', { userId, userEmail });
 
     // Check if admin client is available
     if (!supabaseAdmin) {
       logger.error('❌ Supabase Admin client not initialized');
       return res.status(500).json({ 
-        error: 'Server configuration error. Please contact administrator.', 
-        details: 'SUPABASE_SERVICE_ROLE_KEY not configured' 
+        error: 'A server configuration error is preventing account deletion. Please contact an administrator.', 
+        details: 'The SUPABASE_SERVICE_ROLE_KEY is not configured on the server.' 
       });
     }
 
     // Verify userId is valid
     if (!userId) {
       logger.error('❌ No user ID in token');
-      return res.status(400).json({ error: 'Invalid user session. Please login again.' });
+      return res.status(400).json({ error: 'Your session is invalid or has expired. Please log in again to delete your account.' });
     }
 
     logger.info('📧 Proceeding with account deletion', { userEmail });
@@ -450,11 +453,17 @@ router.delete('/delete-account', protect, async (req, res) => {
     if (authDeleteError) {
       logger.error('❌ Supabase Auth deletion failed', { error: authDeleteError.message });
       return res.status(500).json({ 
-        error: 'Failed to delete authentication account', 
+        error: 'Failed to delete your authentication account. Please contact support.', 
         details: authDeleteError.message 
       });
     }
     logger.info('✅ User deleted from Supabase Auth');
+
+    if (userRole === 'teacher') {
+      const cache = require('../utils/cache');
+      await cache.del('teachers');
+      logger.info('Cleared teachers list cache (teacher deleted)');
+    }
 
     logger.info('✅ Account completely deleted', { userId, userEmail });
     res.json({ success: true, message: 'Account permanently deleted successfully' });
@@ -464,7 +473,7 @@ router.delete('/delete-account', protect, async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    res.status(500).json({ error: 'Failed to delete account', details: error.message });
+    res.status(500).json({ error: 'An unexpected error occurred while deleting your account. Please try again later.', details: error.message });
   }
 });
 

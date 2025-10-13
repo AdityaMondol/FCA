@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { navigate } from 'svelte-routing';
   import { API_URL } from '../config';
+  import { AppError, ERROR_CODES } from '../utils/error';
   
   let t;
   $: t = translations[$currentLanguage];
@@ -86,7 +87,7 @@
 
       const token = authState.session?.access_token;
       if (!token) {
-        throw new Error('Not authenticated');
+        throw new AppError('Not authenticated', ERROR_CODES.AUTH_REQUIRED);
       }
 
       const response = await fetch(`${API_URL}/api/profile`, {
@@ -104,7 +105,7 @@
         isEditing = false;
         loadProfile();
       } else {
-        throw new Error('Failed to update profile');
+        throw new AppError('Failed to update profile', ERROR_CODES.SERVER_ERROR);
       }
     } catch (error) {
       message = $currentLanguage === 'en' 
@@ -130,13 +131,7 @@
   async function changeRole() {
     if (!newRole) return;
     
-    // Remove the hardcoded teacher code validation - let backend handle it
-    // if (newRole === 'teacher' && teacherVerificationCode !== 'FCA2025') {
-    //   message = $currentLanguage === 'en' 
-    //     ? 'Invalid teacher verification code' 
-    //     : 'অবৈধ শিক্ষক যাচাই কোড';
-    //   return;
-    // }
+
 
     isLoading = true;
     try {

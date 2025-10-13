@@ -10,9 +10,9 @@ const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
 // Session configuration
 const SESSION_CONFIG = {
-  maxConcurrentSessions: 10, // Maximum number of concurrent sessions per user
-  sessionTimeout: 30 * 60 * 1000, // 30 minutes in milliseconds
-  refreshTokenTimeout: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
+  maxConcurrentSessions: parseInt(process.env.MAX_CONCURRENT_SESSIONS, 10) || 10,
+  sessionTimeout: parseInt(process.env.SESSION_TIMEOUT_MS, 10) || 30 * 60 * 1000, // 30 minutes
+  refreshTokenTimeout: parseInt(process.env.REFRESH_TOKEN_TIMEOUT_MS, 10) || 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
 // In-memory session store (lightweight and fast)

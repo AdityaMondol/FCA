@@ -2,6 +2,7 @@
 import { API_URL } from '../config';
 import { auth } from '../stores/authStore';
 import { get } from 'svelte/store';
+import { AppError, ERROR_CODES } from './error';
 
 class ApiClient {  constructor() {
     this.cache = new Map();
@@ -37,7 +38,6 @@ class ApiClient {  constructor() {
     if (useCache && options.method !== 'POST' && options.method !== 'PUT' && options.method !== 'DELETE') {
       const cached = this.cache.get(cacheKey);
       if (cached && this.isCacheValid(cached.timestamp)) {
-        console.log('📦 Returning cached response for:', endpoint);
         return cached.data;
       }
     }
@@ -71,13 +71,11 @@ class ApiClient {  constructor() {
         fetchOptions.body = JSON.stringify(options.body);
       }
 
-      console.log(`🚀 API Request: ${options.method || 'GET'} ${endpoint}`);
-      
       const response = await fetch(url, fetchOptions);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        throw new AppError(errorData.error || `HTTP ${response.status}: ${response.statusText}`, `HTTP_${response.status}`);
       }
 
       const data = await response.json();
@@ -97,7 +95,6 @@ class ApiClient {  constructor() {
 
       return data;
     } catch (error) {
-      console.error(`❌ API Error ${endpoint}:`, error.message);
       throw error;
     }
   }

@@ -1,4 +1,4 @@
-// Input validation and sanitization utilities
+const { AppError, ERROR_CODES } = require('./error');
 const validator = {
   // Email validation
   isEmail: (email) => {
@@ -13,11 +13,17 @@ const validator = {
   },
   
   // Name validation
-  isName: (name) => {
-    // Allow letters, spaces, hyphens, and common Bengali characters
-    const nameRegex = /^[a-zA-Z\u0980-\u09FF\s\-']+$/;
-    return nameRegex.test(name) && name.length >= 2 && name.length <= 50;
-  },
+    isName: (name) => {
+      // Allow letters, spaces, and hyphens
+      const nameRegex = /^[a-zA-Z\s\-]+$/;
+      return nameRegex.test(name) && name.length >= 2 && name.length <= 50;
+    },
+  
+    isUsername: (username) => {
+      // Allow letters, numbers, and underscores
+      const usernameRegex = /^[a-zA-Z0-9_]+$/;
+      return usernameRegex.test(username) && username.length >= 3 && username.length <= 20;
+    },
   
   // Password validation
   isPassword: (password) => {
@@ -63,9 +69,11 @@ const validator = {
   },
   
   // Positive number validation
-  isPositive: (num) => {
-    return validator.isNumber(num) && num > 0;
-  }
+  isTeacherCode: (code) => {
+    // Allow uppercase letters and numbers
+    const codeRegex = /^[A-Z0-9]+$/;
+    return codeRegex.test(code) && code.length >= 6 && code.length <= 10;
+  },
 };
 
 // Sanitization functions
@@ -141,8 +149,12 @@ const validationSchemas = {
       errors.push('Invalid phone number format');
     }
     
-    if (data.role === 'teacher' && !data.teacherCode) {
-      errors.push('Teacher verification code is required');
+    if (data.role === 'teacher') {
+      if (!data.teacherCode) {
+        errors.push('Teacher verification code is required');
+      } else if (!validator.isTeacherCode(data.teacherCode)) {
+        errors.push('Invalid teacher verification code format');
+      }
     }
     
     return errors;
@@ -252,7 +264,7 @@ const validationSchemas = {
 // Main validation function
 const validate = (schema, data) => {
   if (!validationSchemas[schema]) {
-    throw new Error(`Validation schema '${schema}' not found`);
+    throw new AppError(`Validation schema '${schema}' not found`, ERROR_CODES.NOT_FOUND);
   }
   
   const errors = validationSchemas[schema](data);

@@ -33,7 +33,7 @@ export const translations = {
     
     // Home Page
     heroTitle: 'Welcome to Farid Cadet Academy',
-    heroSubtitle: 'Preparing Future Leaders for Cadet Colleges',
+    heroSubtitle: 'Ahead in education service in Tangail',
     heroDescription: 'Expert coaching for cadet college admission with proven success rates',
     admissionOpen: 'Admissions Open!',
     enrollNow: 'Enroll Now',
@@ -140,7 +140,7 @@ export const translations = {
     
     // Home Page
     heroTitle: 'ফরিদ ক্যাডেট একাডেমিতে স্বাগতম',
-    heroSubtitle: 'ক্যাডেট কলেজের জন্য ভবিষ্যত নেতা তৈরি করছি',
+    heroSubtitle: 'টাঙ্গাইলে শিক্ষা সেবায় এগিয়ে',
     heroDescription: 'প্রমাণিত সাফল্যের হার সহ ক্যাডেট কলেজ ভর্তির জন্য বিশেষজ্ঞ কোচিং',
     admissionOpen: 'ভর্তি চলছে!',
     enrollNow: 'এখনই ভর্তি হন',

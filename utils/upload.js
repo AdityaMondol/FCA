@@ -2,6 +2,7 @@
 const multer = require('multer');
 const sharp = require('sharp');
 const path = require('path');
+const { AppError, ERROR_CODES } = require('./error');
 
 // File type validation
 const ALLOWED_FILE_TYPES = {
@@ -53,7 +54,7 @@ const fileFilter = (allowedTypes) => {
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`), false);
+      cb(new AppError(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`, ERROR_CODES.VALIDATION_ERROR), false);
     }
   };
 };
@@ -166,7 +167,7 @@ const uploadToSupabase = async (supabase, bucket, fileName, buffer, contentType)
       });
 
     if (error) {
-      throw new Error(`Upload failed: ${error.message}`);
+      throw new AppError(`Upload failed: ${error.message}`, ERROR_CODES.UPLOAD_FAILED);
     }
 
     // Get public URL
@@ -195,7 +196,7 @@ const deleteFromSupabase = async (supabase, bucket, fileName) => {
       .remove([fileName]);
 
     if (error) {
-      throw new Error(`Delete failed: ${error.message}`);
+      throw new AppError(`Delete failed: ${error.message}`, ERROR_CODES.UPLOAD_FAILED);
     }
 
     return {

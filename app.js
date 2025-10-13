@@ -21,9 +21,13 @@ const {
   IMAGE_PROCESSING_OPTIONS
 } = require('./utils/upload');
 const { logger, httpLogger } = require('./utils/log');
+const { validateEnv } = require('./utils/env');
 
 // Load environment variables
 dotenv.config();
+
+// Validate environment variables
+validateEnv();
 
 const app = express();
 
@@ -31,10 +35,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security enhancements
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development_only';
-if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'fallback_secret_key_for_development_only') {
-  logger.warn('WARNING: Using fallback JWT secret in production. Please set JWT_SECRET in environment variables.');
-}
+
 
 // Add security headers middleware
 app.use((req, res, next) => {
@@ -55,27 +56,23 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey) : null;
 
-// Silent background database connection test
 supabase
   .from('users')
   .select('count')
   .then(({ data, error }) => {
-    if (!error) {
-      console.log(`  \x1b[32m✓\x1b[0m Database connected`);
+    if (error) {
+      logger.error('Database connection failed', { error: error.message });
+    } else {
+      logger.info('Database connected successfully');
     }
   })
-  .catch(() => {
-    // Silently handle connection issues
+  .catch((error) => {
+    logger.error('Database connection failed', { error: error.message });
   });
 
 // Middleware
 const corsOptions = {
-  origin: [
-    'http://localhost:5173', // Vite dev server
-    'http://localhost:3000', // Local backend
-    'https://farid-cadet.netlify.app', // Production frontend
-    FRONTEND_URL
-  ],
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : FRONTEND_URL,
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -95,8 +92,8 @@ app.use((req, res, next) => {
 
 // Rate limiting for authentication endpoints
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // limit each IP to 20 requests per windowMs (increased for testing/development)
+  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 20, // limit each IP to 20 requests per windowMs
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
@@ -114,8 +111,8 @@ app.use('/api/auth/register', authLimiter);
 
 // Rate limiting for role change endpoint
 const roleChangeLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // limit each IP to 3 requests per windowMs
+  windowMs: parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_WINDOW_MS, 10) || 60 * 60 * 1000, // 1 hour
+  max: parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_MAX, 10) || 3, // limit each IP to 3 requests per windowMs
   message: {
     error: 'Too many role change attempts, please try again later.'
   },
