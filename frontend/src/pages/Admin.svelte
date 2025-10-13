@@ -251,10 +251,11 @@
             </h2>
             <form on:submit={createNotice} class="space-y-4">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notice-title-en" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Title (English)' : 'শিরোনাম (ইংরেজি)'}
                 </label>
                 <input
+                  id="notice-title-en"
                   type="text"
                   bind:value={noticeForm.title_en}
                   required
@@ -263,10 +264,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notice-title-bn" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Title (Bangla)' : 'শিরোনাম (বাংলা)'}
                 </label>
                 <input
+                  id="notice-title-bn"
                   type="text"
                   bind:value={noticeForm.title_bn}
                   required
@@ -275,10 +277,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notice-content-en" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Content (English)' : 'বিষয়বস্তু (ইংরেজি)'}
                 </label>
                 <textarea
+                  id="notice-content-en"
                   bind:value={noticeForm.content_en}
                   required
                   rows="4"
@@ -287,10 +290,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notice-content-bn" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Content (Bangla)' : 'বিষয়বস্তু (বাংলা)'}
                 </label>
                 <textarea
+                  id="notice-content-bn"
                   bind:value={noticeForm.content_bn}
                   required
                   rows="4"
@@ -299,10 +303,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notice-priority" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Priority' : 'অগ্রাধিকার'}
                 </label>
                 <select
+                  id="notice-priority"
                   bind:value={noticeForm.priority}
                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
@@ -333,6 +338,7 @@
                     <button
                       on:click={() => deleteNotice(notice.id)}
                       class="text-red-500 hover:text-red-700 transition-colors"
+                      aria-label={$currentLanguage === 'en' ? 'Delete notice' : 'নোটিশ মুছুন'}
                     >
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -367,10 +373,11 @@
             </h2>
             <form on:submit={uploadMedia} class="space-y-4">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="media-title" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Title' : 'শিরোনাম'}
                 </label>
                 <input
+                  id="media-title"
                   type="text"
                   bind:value={mediaForm.title}
                   required
@@ -379,10 +386,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="media-description" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'Description' : 'বর্ণনা'}
                 </label>
                 <textarea
+                  id="media-description"
                   bind:value={mediaForm.description}
                   rows="3"
                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
@@ -390,10 +398,11 @@
               </div>
 
               <div>
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label for="media-file" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {$currentLanguage === 'en' ? 'File' : 'ফাইল'}
                 </label>
                 <input
+                  id="media-file"
                   type="file"
                   accept="image/*,video/*"
                   on:change={handleMediaFile}
@@ -420,12 +429,15 @@
                     {#if item.type === 'image'}
                       <img src={item.url} alt={item.title} class="w-full h-full object-cover" />
                     {:else}
-                      <video src={item.url} class="w-full h-full object-cover"></video>
+                      <video src={item.url} class="w-full h-full object-cover" aria-label={item.title}>
+                        <track kind="captions" />
+                      </video>
                     {/if}
                   </div>
                   <button
                     on:click={() => deleteMedia(item.id)}
                     class="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={$currentLanguage === 'en' ? 'Delete media' : 'মিডিয়া মুছুন'}
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

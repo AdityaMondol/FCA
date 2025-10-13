@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 const { validate, sanitizeInput } = require('./utils/validate');
 const { 
   verifyToken, 
@@ -35,7 +36,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security enhancements
-
+app.use(helmet());
 
 // Add security headers middleware
 app.use((req, res, next) => {
@@ -68,14 +69,28 @@ supabase
   })
   .catch((error) => {
     logger.error('Database connection failed', { error: error.message });
+    // Properly logging the error instead of silent handling
   });
 
 // Middleware
-const corsOptions = {
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : FRONTEND_URL,
-  credentials: true,
-  optionsSuccessStatus: 200
-};
+// CORS configuration from environment variables
+let corsOptions;
+if (process.env.CORS_ORIGIN) {
+  const origins = process.env.CORS_ORIGIN.split(',').map(origin => origin.trim());
+  corsOptions = {
+    origin: origins,
+    credentials: true,
+    optionsSuccessStatus: 200
+  };
+} else {
+  // Default CORS configuration
+  corsOptions = {
+    origin: FRONTEND_URL,
+    credentials: true,
+    optionsSuccessStatus: 200
+  };
+}
+
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -90,10 +105,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Rate limiting configuration from environment variables
+const authRateLimitWindowMs = parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000; // 15 minutes
+const authRateLimitMax = parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 20;
+
+const roleChangeRateLimitWindowMs = parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_WINDOW_MS, 10) || 60 * 60 * 1000; // 1 hour
+const roleChangeRateLimitMax = parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_MAX, 10) || 3;
+
 // Rate limiting for authentication endpoints
 const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 20, // limit each IP to 20 requests per windowMs
+  windowMs: authRateLimitWindowMs,
+  max: authRateLimitMax,
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
@@ -111,8 +133,8 @@ app.use('/api/auth/register', authLimiter);
 
 // Rate limiting for role change endpoint
 const roleChangeLimiter = rateLimit({
-  windowMs: parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_WINDOW_MS, 10) || 60 * 60 * 1000, // 1 hour
-  max: parseInt(process.env.ROLE_CHANGE_RATE_LIMIT_MAX, 10) || 3, // limit each IP to 3 requests per windowMs
+  windowMs: roleChangeRateLimitWindowMs,
+  max: roleChangeRateLimitMax,
   message: {
     error: 'Too many role change attempts, please try again later.'
   },

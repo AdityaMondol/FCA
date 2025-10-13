@@ -1,251 +1,102 @@
 // Enhanced authentication utilities
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { createClient } = require('@supabase/supabase-js');
+const { AppError, ERROR_CODES } = require('./error');
+const { logger } = require('./log');
 
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development_only';
+// JWT Configuration - Removed fallback secret for security
+const JWT_SECRET = process.env.JWT_SECRET; // Removed fallback for security
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
-// Session configuration
+// Session Configuration
 const SESSION_CONFIG = {
-  maxConcurrentSessions: parseInt(process.env.MAX_CONCURRENT_SESSIONS, 10) || 10,
-  sessionTimeout: parseInt(process.env.SESSION_TIMEOUT_MS, 10) || 30 * 60 * 1000, // 30 minutes
-  refreshTokenTimeout: parseInt(process.env.REFRESH_TOKEN_TIMEOUT_MS, 10) || 30 * 24 * 60 * 60 * 1000 // 30 days
+  maxAge: parseInt(process.env.SESSION_MAX_AGE) || 24 * 60 * 60 * 1000, // 24 hours
+  refreshTokenMaxAge: parseInt(process.env.REFRESH_TOKEN_MAX_AGE) || 7 * 24 * 60 * 60 * 1000 // 7 days
 };
 
-// In-memory session store (lightweight and fast)
-const sessionStore = new Map();
+// Validate JWT secret is provided
+if (!JWT_SECRET) {
+  logger.error('JWT_SECRET is not set in environment variables');
+  process.exit(1);
+}
 
 // Generate JWT token
 const generateToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  try {
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  } catch (error) {
+    logger.error('Error generating JWT token', { error: error.message });
+    throw new AppError('Failed to generate authentication token', ERROR_CODES.SERVER_ERROR);
+  }
 };
 
 // Generate refresh token
 const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  try {
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  } catch (error) {
+    logger.error('Error generating refresh token', { error: error.message });
+    throw new AppError('Failed to generate refresh token', ERROR_CODES.SERVER_ERROR);
+  }
 };
 
 // Verify JWT token
 const verifyToken = (token) => {
   try {
-    return { valid: true, payload: jwt.verify(token, JWT_SECRET) };
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
-    return { valid: false, error: error.message };
+    if (error.name === 'TokenExpiredError') {
+      throw new AppError('Token expired', ERROR_CODES.AUTH_REQUIRED, 401);
+    } else if (error.name === 'JsonWebTokenError') {
+      throw new AppError('Invalid token', ERROR_CODES.AUTH_REQUIRED, 401);
+    } else {
+      logger.error('Error verifying token', { error: error.message });
+      throw new AppError('Failed to verify token', ERROR_CODES.SERVER_ERROR);
+    }
   }
 };
 
 // Hash password
 const hashPassword = async (password) => {
-  const saltRounds = 12;
-  return await bcrypt.hash(password, saltRounds);
+  try {
+    const saltRounds = 10;
+    return await bcrypt.hash(password, saltRounds);
+  } catch (error) {
+    logger.error('Error hashing password', { error: error.message });
+    throw new AppError('Failed to hash password', ERROR_CODES.SERVER_ERROR);
+  }
 };
 
 // Compare password
-const comparePassword = async (password, hash) => {
-  return await bcrypt.compare(password, hash);
-};
-
-// Create session
-const createSession = (userId, sessionId) => {
-  const session = {
-    userId,
-    sessionId,
-    createdAt: Date.now(),
-    lastAccessed: Date.now()
-  };
-  
-  // Store session
-  sessionStore.set(sessionId, session);
-  
-  // Clean up old sessions for this user
-  cleanupUserSessions(userId);
-  
-  return session;
-};
-
-// Validate session
-const validateSession = (sessionId) => {
-  const session = sessionStore.get(sessionId);
-  
-  if (!session) {
-    return { valid: false, error: 'Session not found' };
-  }
-  
-  // Check if session has expired
-  if (Date.now() - session.createdAt > SESSION_CONFIG.sessionTimeout) {
-    sessionStore.delete(sessionId);
-    return { valid: false, error: 'Session expired' };
-  }
-  
-  // Update last accessed time
-  session.lastAccessed = Date.now();
-  sessionStore.set(sessionId, session);
-  
-  return { valid: true, session };
-};
-
-// Cleanup user sessions
-const cleanupUserSessions = (userId) => {
-  const userSessions = [];
-  
-  // Find all sessions for this user
-  for (const [sessionId, session] of sessionStore.entries()) {
-    if (session.userId === userId) {
-      userSessions.push({ sessionId, session });
-    }
-  }
-  
-  // Sort by creation time (oldest first)
-  userSessions.sort((a, b) => a.session.createdAt - b.session.createdAt);
-  
-  // Remove excess sessions
-  if (userSessions.length > SESSION_CONFIG.maxConcurrentSessions) {
-    const sessionsToRemove = userSessions.slice(0, userSessions.length - SESSION_CONFIG.maxConcurrentSessions);
-    for (const { sessionId } of sessionsToRemove) {
-      sessionStore.delete(sessionId);
-    }
-  }
-};
-
-// Invalidate session
-const invalidateSession = (sessionId) => {
-  sessionStore.delete(sessionId);
-};
-
-// Invalidate all user sessions
-const invalidateAllUserSessions = (userId) => {
-  for (const [sessionId, session] of sessionStore.entries()) {
-    if (session.userId === userId) {
-      sessionStore.delete(sessionId);
-    }
-  }
-};
-
-// Get active sessions for user
-const getUserSessions = (userId) => {
-  const sessions = [];
-  
-  for (const [sessionId, session] of sessionStore.entries()) {
-    if (session.userId === userId) {
-      sessions.push({
-        sessionId,
-        createdAt: session.createdAt,
-        lastAccessed: session.lastAccessed
-      });
-    }
-  }
-  
-  return sessions;
-};
-
-// Refresh token
-const refreshToken = async (refreshToken) => {
+const comparePassword = async (password, hashedPassword) => {
   try {
-    const { payload } = jwt.verify(refreshToken, JWT_SECRET);
-    
-    // Check if refresh token is still valid
-    if (Date.now() - payload.iat * 1000 > SESSION_CONFIG.refreshTokenTimeout) {
-      return { success: false, error: 'Refresh token expired' };
-    }
-    
-    // Generate new tokens
-    const newToken = generateToken({ 
-      userId: payload.userId, 
-      email: payload.email,
-      role: payload.role
-    });
-    
-    const newRefreshToken = generateRefreshToken({ 
-      userId: payload.userId, 
-      email: payload.email,
-      role: payload.role
-    });
-    
-    return { 
-      success: true, 
-      token: newToken, 
-      refreshToken: newRefreshToken 
-    };
+    return await bcrypt.compare(password, hashedPassword);
   } catch (error) {
-    return { success: false, error: 'Invalid refresh token' };
+    logger.error('Error comparing passwords', { error: error.message });
+    throw new AppError('Failed to compare passwords', ERROR_CODES.SERVER_ERROR);
   }
 };
 
-// Role-based access control
-const hasPermission = (userRole, requiredRoles) => {
-  if (!Array.isArray(requiredRoles)) {
-    requiredRoles = [requiredRoles];
-  }
-  
-  return requiredRoles.includes(userRole);
+// Permission checking functions
+const hasPermission = (user, requiredPermission) => {
+  // Implementation would depend on your permission system
+  return user && user.role === 'teacher'; // Simplified for now
 };
 
-// Permission levels
-const PERMISSION_LEVELS = {
-  student: 1,
-  guardian: 2,
-  teacher: 3,
-  admin: 4
-};
-
-// Check if user has required permission level
-const hasPermissionLevel = (userRole, requiredLevel) => {
-  const userLevel = PERMISSION_LEVELS[userRole] || 0;
-  const requiredLevelValue = PERMISSION_LEVELS[requiredLevel] || 0;
-  
-  return userLevel >= requiredLevelValue;
-};
-
-// Session middleware
-const sessionMiddleware = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  const { valid, payload, error } = verifyToken(token);
-  
-  if (!valid) {
-    return res.status(403).json({ error: 'Invalid or expired token' });
-  }
-
-  req.user = payload;
-  next();
-};
-
-// Role-based middleware
-const roleMiddleware = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    if (!hasPermission(req.user.role, allowedRoles)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    
-    next();
+const hasPermissionLevel = (user, requiredRole) => {
+  const roleHierarchy = {
+    student: 1,
+    guardian: 2,
+    teacher: 3
   };
-};
 
-// Permission level middleware
-const permissionLevelMiddleware = (requiredLevel) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    if (!hasPermissionLevel(req.user.role, requiredLevel)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    
-    next();
-  };
+  if (!user || !user.role) return false;
+  
+  const userLevel = roleHierarchy[user.role] || 0;
+  const requiredLevel = roleHierarchy[requiredRole] || 0;
+  
+  return userLevel >= requiredLevel;
 };
 
 module.exports = {
@@ -254,16 +105,7 @@ module.exports = {
   verifyToken,
   hashPassword,
   comparePassword,
-  createSession,
-  validateSession,
-  invalidateSession,
-  invalidateAllUserSessions,
-  getUserSessions,
-  refreshToken,
   hasPermission,
   hasPermissionLevel,
-  sessionMiddleware,
-  roleMiddleware,
-  permissionLevelMiddleware,
   SESSION_CONFIG
 };

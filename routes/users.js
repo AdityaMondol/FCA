@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
@@ -15,10 +14,21 @@ const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY) : null;
 
+// Profile cache to avoid redundant fetches
+let profileCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Get user profile (protected)
 router.get('/profile', protect, async (req, res) => {
   try {
+    const cacheKey = `profile_${req.user.id}`;
+    const cached = profileCache.get(cacheKey);
+    
+    // Return cached profile if valid
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return res.json(cached.data);
+    }
+    
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select(`
@@ -53,6 +63,13 @@ router.get('/profile', protect, async (req, res) => {
     };
 
     delete profile.teacher_profiles;
+    
+    // Cache the profile
+    profileCache.set(cacheKey, {
+      data: profile,
+      timestamp: Date.now()
+    });
+    
     res.json(profile);
   } catch (error) {
     logger.error('Error fetching profile', {
@@ -225,9 +242,7 @@ router.put('/profile', protect, uploadProfilePhoto, async (req, res) => {
 
     // Clear profile cache
     const cacheKey = `profile_${req.user.id}`;
-    if (typeof profileCache !== 'undefined') {
-      profileCache.delete(cacheKey);
-    }
+    profileCache.delete(cacheKey);
 
     logger.info('✅ Profile updated successfully', {
       userId: req.user.id
@@ -347,6 +362,10 @@ router.put('/change-role', protect, async (req, res) => {
       logger.info('Cleared teachers list cache (role changed from teacher)');
     }
 
+    // Clear profile cache
+    const cacheKey = `profile_${req.user.id}`;
+    profileCache.delete(cacheKey);
+
     logger.info('✅ Role changed successfully', { 
       userId: req.user.id, 
       newRole: role 
@@ -464,6 +483,10 @@ router.delete('/delete-account', protect, async (req, res) => {
       await cache.del('teachers');
       logger.info('Cleared teachers list cache (teacher deleted)');
     }
+
+    // Clear profile cache
+    const cacheKey = `profile_${userId}`;
+    profileCache.delete(cacheKey);
 
     logger.info('✅ Account completely deleted', { userId, userEmail });
     res.json({ success: true, message: 'Account permanently deleted successfully' });

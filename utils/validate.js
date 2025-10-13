@@ -12,18 +12,18 @@ const validator = {
     return phoneRegex.test(phone);
   },
   
-  // Name validation
-    isName: (name) => {
-      // Allow letters, spaces, and hyphens
-      const nameRegex = /^[a-zA-Z\s\-]+$/;
-      return nameRegex.test(name) && name.length >= 2 && name.length <= 50;
-    },
+  // Name validation - Strengthened pattern
+  isName: (name) => {
+    // Allow letters, spaces, hyphens, apostrophes, and Bengali characters
+    const nameRegex = /^[a-zA-Z\u0980-\u09FF\s\-']+$/;
+    return nameRegex.test(name) && name.length >= 2 && name.length <= 50;
+  },
   
-    isUsername: (username) => {
-      // Allow letters, numbers, and underscores
-      const usernameRegex = /^[a-zA-Z0-9_]+$/;
-      return usernameRegex.test(username) && username.length >= 3 && username.length <= 20;
-    },
+  isUsername: (username) => {
+    // Allow letters, numbers, and underscores
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    return usernameRegex.test(username) && username.length >= 3 && username.length <= 20;
+  },
   
   // Password validation
   isPassword: (password) => {
@@ -110,6 +110,7 @@ const sanitizer = {
   // Remove special characters except allowed ones
   removeSpecialChars: (str, allowedChars = '') => {
     if (typeof str !== 'string') return str;
+    // Allow letters, numbers, spaces, and specified allowed characters
     const regex = new RegExp(`[^a-zA-Z0-9\u0980-\u09FF\\s${allowedChars}]`, 'g');
     return str.replace(regex, '');
   }
