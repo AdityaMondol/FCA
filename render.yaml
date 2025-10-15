@@ -3,7 +3,7 @@ services:
     name: farid-cadet-academy-backend
     env: node
     plan: free
-    # Backend only - frontend is deployed separately on Netlify
+    # Backend only - frontend is deployed separately on Vercel
     buildCommand: npm install
     startCommand: node server.js
     envVars:
@@ -23,7 +23,7 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://farid-cadet.netlify.app
+        value: https://farid-cadet.vercel.app
     # Health check configuration
     healthCheckPath: /api/health
     # Auto-deploy configuration

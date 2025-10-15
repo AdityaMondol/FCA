@@ -35,15 +35,37 @@ const app = express();
 // Trust proxy - REQUIRED for Render/Heroku/behind reverse proxy
 app.set('trust proxy', 1);
 
-// Security enhancements
-app.use(helmet());
+// Enhanced security with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://*.supabase.co", "https://fca-3oz1.onrender.com"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  dnsPrefetchControl: { allow: true },
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
+}));
 
-// Add security headers middleware
+// Add additional security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
   next();
 });
 
@@ -53,10 +75,26 @@ const supabaseKey = process.env.SUPABASE_KEY || 'your_supabase_key_here';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // MUST be service role key
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+// Validate Supabase configuration
+if (!supabaseUrl || supabaseUrl === 'your_supabase_url_here') {
+  logger.error('SUPABASE_URL is not configured properly');
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+
+if (!supabaseKey || supabaseKey === 'your_supabase_key_here') {
+  logger.error('SUPABASE_KEY is not configured properly');
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+
 // Supabase Configuration
 const supabase = createClient(supabaseUrl, supabaseKey);
 const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey) : null;
 
+// Test database connection
 supabase
   .from('users')
   .select('count')
@@ -69,7 +107,6 @@ supabase
   })
   .catch((error) => {
     logger.error('Database connection failed', { error: error.message });
-    // Properly logging the error instead of silent handling
   });
 
 // Middleware
@@ -92,16 +129,47 @@ if (process.env.CORS_ORIGIN) {
 }
 
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Body parsing middleware with security limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Apply HTTP logging middleware
 app.use(httpLogger);
 
-// Minimal request logging middleware
+// Request sanitization middleware
 app.use((req, res, next) => {
-  // Mark request start time for performance tracking
-  req._startTime = Date.now();
+  // Sanitize query parameters
+  if (req.query) {
+    req.query = sanitizeInput(req.query);
+  }
+  
+  // Sanitize body parameters
+  if (req.body) {
+    req.body = sanitizeInput(req.body);
+  }
+  
+  // Sanitize URL parameters
+  if (req.params) {
+    req.params = sanitizeInput(req.params);
+  }
+  
+  next();
+});
+
+// Request validation middleware
+app.use((req, res, next) => {
+  // Check for excessively long URLs
+  if (req.url.length > 2048) {
+    return res.status(414).json({ error: 'Request URI too long' });
+  }
+  
+  // Check for excessively large headers
+  const headerSize = JSON.stringify(req.headers).length;
+  if (headerSize > 8192) {
+    return res.status(431).json({ error: 'Request header fields too large' });
+  }
+  
   next();
 });
 
@@ -167,9 +235,9 @@ const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // Handle non-API routes
-// Since frontend is deployed on Netlify, redirect users who access backend URL directly
+// Since frontend is deployed on Vercel, redirect users who access backend URL directly
 if (process.env.NODE_ENV === 'production') {
-  // Redirect root and non-API routes to Netlify frontend
+  // Redirect root and non-API routes to Vercel frontend
   app.get('/', (req, res) => {
     res.redirect(FRONTEND_URL);
   });
