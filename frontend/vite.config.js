@@ -18,11 +18,11 @@ export default defineConfig({
   // Enhanced build configuration
   build: {
     target: 'esnext',
-    sourcemap: true,
+    sourcemap: false,
+    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['svelte', '@supabase/supabase-js'],
           ui: ['lucide-svelte', 'svelte-french-toast']
         }
       }
