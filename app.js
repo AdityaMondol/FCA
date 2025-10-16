@@ -257,9 +257,9 @@ const mediaRoutes = require('./routes/media');
 const teachersRoutes = require('./routes/teachers');
 const contactRoutes = require('./routes/contact');
 const mfaRoutes = require('./routes/mfa');
-const advancedRoutes = require('./routes/advanced');
-const futuristicRoutes = require('./routes/futuristic');
-const docsRoutes = require('./routes/docs');
+const analyticsRoutes = require('./routes/analytics');
+const realtimeRoutes = require('./routes/realtime');
+const searchRoutes = require('./routes/search');
 const mainRoutes = require('./routes/main');
 
 app.use('/api/auth', authRoutes);
@@ -269,9 +269,9 @@ app.use('/api/notices', noticesRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/teachers', teachersRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/advanced', advancedRoutes);
-app.use('/api/futuristic', futuristicRoutes);
-app.use('/api/docs', docsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/realtime', realtimeRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/api', mainRoutes);
 
 // Error handling

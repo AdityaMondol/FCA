@@ -12,7 +12,7 @@
   
   A production-ready full-stack web application built with **Svelte**, **TailwindCSS**, **Node.js/Express**, and **Supabase**.
   
-  [Live Demo](https://farid-cadet.netlify.app) • 
+  [Live Demo](https://farid-cadet.Vercel.app) • 
   [Documentation](#documentation) • 
   [Features](#features) • 
   [Installation](#installation)
@@ -250,7 +250,7 @@ Deploy to any Node.js hosting service:
 ### Frontend
 The frontend is built into the `dist` folder and can be deployed to:
 ```bash
-# Netlify
+# Vercel
 # Vercel
 # GitHub Pages
 # Any static hosting service
@@ -304,6 +304,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   **Made with ❤️ for Farid Cadet Academy**
   
   [![GitHub](https://img.shields.io/badge/GitHub-Repository-black)](https://github.com/yourusername/farid-cadet-academy)
-  [![Netlify](https://img.shields.io/badge/Netlify-Live%20Demo-blue)](https://farid-cadet.netlify.app)
+  [![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-blue)](https://farid-cadet.Vercel.app)
   
 </div>
