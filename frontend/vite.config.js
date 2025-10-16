@@ -13,24 +13,5 @@ export default defineConfig({
         secure: false
       }
     }
-  },
-  
-  // Enhanced build configuration
-  build: {
-    target: 'esnext',
-    sourcemap: false,
-    minify: 'terser'
-  },
-  
-  // Optimization settings
-  optimizeDeps: {
-    include: ['@supabase/supabase-js', 'lucide-svelte']
-  },
-  
-  // Test configuration
-  test: {
-    include: ['src/**/*.{test,spec}.{js,ts}'],
-    environment: 'jsdom',
-    setupFiles: ['src/setupTests.js']
   }
 });
