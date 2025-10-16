@@ -7,34 +7,36 @@ class CacheManager {
     this.isConnected = false;
     this.retryAttempts = 0;
     this.maxRetries = 5;
+    this.memoryCache = new Map();
   }
 
   async connect() {
     try {
+      // Skip Redis if not configured
+      if (!process.env.REDIS_URL) {
+        logger.warn('Redis URL not configured - using in-memory cache');
+        this.isConnected = false;
+        return true;
+      }
+
       // Redis configuration with fallback
       const redisConfig = {
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
-        retry_strategy: (options) => {
-          if (options.error && options.error.code === 'ECONNREFUSED') {
-            logger.error('Redis server connection refused');
-            return new Error('Redis server connection refused');
+        url: process.env.REDIS_URL,
+        socket: {
+          reconnectStrategy: (retries) => {
+            if (retries > this.maxRetries) {
+              logger.error('Redis max retries reached');
+              return new Error('Max retries exceeded');
+            }
+            return Math.min(retries * 100, 3000);
           }
-          if (options.total_retry_time > 1000 * 60 * 60) {
-            logger.error('Redis retry time exhausted');
-            return new Error('Retry time exhausted');
-          }
-          if (options.attempt > this.maxRetries) {
-            logger.error('Redis max retries reached');
-            return undefined;
-          }
-          return Math.min(options.attempt * 100, 3000);
         }
       };
 
       this.client = redis.createClient(redisConfig);
 
       this.client.on('error', (err) => {
-        logger.error('Redis Client Error:', err);
+        logger.warn('Redis Client Error (non-critical):', err.message);
         this.isConnected = false;
       });
 
@@ -55,9 +57,10 @@ class CacheManager {
       });
 
       await this.client.connect();
+      logger.info('Redis connected successfully');
       return true;
     } catch (error) {
-      logger.error('Failed to connect to Redis:', error);
+      logger.warn('Redis connection failed - using in-memory cache:', error.message);
       this.isConnected = false;
       return false;
     }
@@ -73,37 +76,61 @@ class CacheManager {
 
   // Enhanced get with error handling
   async get(key) {
-    if (!this.isConnected || !this.client) {
-      logger.warn('Redis not connected, skipping cache get');
-      return null;
-    }
-
     try {
-      const value = await this.client.get(key);
-      if (value) {
-        return JSON.parse(value);
+      // Try Redis first
+      if (this.isConnected && this.client) {
+        const value = await this.client.get(key);
+        if (value) {
+          return JSON.parse(value);
+        }
       }
+      
+      // Fallback to in-memory cache
+      const cached = this.memoryCache.get(key);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.value;
+      }
+      
+      // Clean up expired entry
+      if (cached) {
+        this.memoryCache.delete(key);
+      }
+      
       return null;
     } catch (error) {
-      logger.error('Redis GET error:', error);
+      logger.warn('Cache GET error, using memory fallback:', error.message);
+      const cached = this.memoryCache.get(key);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.value;
+      }
       return null;
     }
   }
 
   // Enhanced set with TTL and error handling
   async set(key, value, ttl = 3600) {
-    if (!this.isConnected || !this.client) {
-      logger.warn('Redis not connected, skipping cache set');
-      return false;
-    }
-
     try {
-      const serialized = JSON.stringify(value);
-      await this.client.setEx(key, ttl, serialized);
+      // Try Redis first
+      if (this.isConnected && this.client) {
+        const serialized = JSON.stringify(value);
+        await this.client.setEx(key, ttl, serialized);
+        return true;
+      }
+      
+      // Fallback to in-memory cache
+      this.memoryCache.set(key, {
+        value,
+        expiresAt: Date.now() + (ttl * 1000)
+      });
       return true;
     } catch (error) {
-      logger.error('Redis SET error:', error);
-      return false;
+      logger.warn('Cache SET error, using memory fallback:', error.message);
+      // Store in memory as fallback
+      this.memoryCache.set(key, {
+        value,
+        expiresAt: Date.now() + (ttl * 1000)
+      });
+      return true;
     }
   }
 
