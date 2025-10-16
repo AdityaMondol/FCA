@@ -1,252 +1,325 @@
-// Enhanced cache implementation with Redis support
-// Falls back to in-memory cache if Redis is not available
-
+const redis = require('redis');
 const { logger } = require('./log');
 
-// Try to initialize Redis client
-let redisClient = null;
-let useRedis = false;
-
-try {
-  // Check if Redis environment variables are set
-  if (process.env.REDIS_URL || (process.env.REDIS_HOST && process.env.REDIS_PORT)) {
-    const redis = require('redis');
-    
-    // Create Redis client based on environment variables
-    if (process.env.REDIS_URL) {
-      redisClient = redis.createClient({
-        url: process.env.REDIS_URL
-      });
-    } else {
-      redisClient = redis.createClient({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD || undefined
-      });
-    }
-    
-    // Connect to Redis
-    redisClient.connect().then(() => {
-      logger.info('💾 Redis cache initialized');
-      useRedis = true;
-    }).catch((err) => {
-      logger.warn('Failed to connect to Redis, falling back to in-memory cache', { error: err.message });
-      useRedis = false;
-    });
-    
-    // Handle Redis errors
-    redisClient.on('error', (err) => {
-      logger.error('Redis error', { error: err.message });
-      useRedis = false;
-    });
-  } else {
-    logger.info('Redis not configured, using in-memory cache');
+class CacheManager {
+  constructor() {
+    this.client = null;
+    this.isConnected = false;
+    this.retryAttempts = 0;
+    this.maxRetries = 5;
   }
-} catch (err) {
-  logger.warn('Redis not available, using in-memory cache', { error: err.message });
-}
 
-// In-memory cache store (fallback)
-const memoryCache = new Map();
-
-// Automatic cache cleanup interval (every 5 minutes)
-const CLEANUP_INTERVAL = 5 * 60 * 1000;
-
-// Start automatic cleanup for in-memory cache
-const cleanupInterval = setInterval(() => {
-  const now = Date.now();
-  let cleanedCount = 0;
-  
-  for (const [key, data] of memoryCache.entries()) {
-    if (data.expiry && data.expiry < now) {
-      memoryCache.delete(key);
-      cleanedCount++;
-    }
-  }
-  
-  if (cleanedCount > 0) {
-    logger.debug(`🧹 In-memory cache cleanup: removed ${cleanedCount} expired items`);
-  }
-}, CLEANUP_INTERVAL);
-
-// Prevent the cleanup interval from keeping the process alive
-cleanupInterval.unref();
-
-if (!useRedis) {
-  logger.info('💾 In-memory cache initialized');
-}
-
-/**
- * Get value from cache
- * @param {string} key - Cache key
- * @returns {Promise<any>} Cached value or null if not found/expired
- */
-const get = async (key) => {
-  try {
-    if (useRedis && redisClient) {
-      try {
-        const value = await redisClient.get(key);
-        if (value) {
-          return JSON.parse(value);
+  async connect() {
+    try {
+      // Redis configuration with fallback
+      const redisConfig = {
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        retry_strategy: (options) => {
+          if (options.error && options.error.code === 'ECONNREFUSED') {
+            logger.error('Redis server connection refused');
+            return new Error('Redis server connection refused');
+          }
+          if (options.total_retry_time > 1000 * 60 * 60) {
+            logger.error('Redis retry time exhausted');
+            return new Error('Retry time exhausted');
+          }
+          if (options.attempt > this.maxRetries) {
+            logger.error('Redis max retries reached');
+            return undefined;
+          }
+          return Math.min(options.attempt * 100, 3000);
         }
-        return null;
-      } catch (err) {
-        logger.warn('Redis get error, falling back to in-memory cache', { key, error: err.message });
-        useRedis = false;
-      }
+      };
+
+      this.client = redis.createClient(redisConfig);
+
+      this.client.on('error', (err) => {
+        logger.error('Redis Client Error:', err);
+        this.isConnected = false;
+      });
+
+      this.client.on('connect', () => {
+        logger.info('Redis Client Connected');
+        this.isConnected = true;
+        this.retryAttempts = 0;
+      });
+
+      this.client.on('ready', () => {
+        logger.info('Redis Client Ready');
+        this.isConnected = true;
+      });
+
+      this.client.on('end', () => {
+        logger.warn('Redis Client Disconnected');
+        this.isConnected = false;
+      });
+
+      await this.client.connect();
+      return true;
+    } catch (error) {
+      logger.error('Failed to connect to Redis:', error);
+      this.isConnected = false;
+      return false;
     }
-    
-    // Fallback to in-memory cache
-    const data = memoryCache.get(key);
-    
-    if (!data) {
+  }
+
+  async disconnect() {
+    if (this.client) {
+      await this.client.quit();
+      this.isConnected = false;
+      logger.info('Redis Client Disconnected');
+    }
+  }
+
+  // Enhanced get with error handling
+  async get(key) {
+    if (!this.isConnected || !this.client) {
+      logger.warn('Redis not connected, skipping cache get');
       return null;
     }
-    
-    // Check if expired
-    if (data.expiry && data.expiry < Date.now()) {
-      memoryCache.delete(key);
+
+    try {
+      const value = await this.client.get(key);
+      if (value) {
+        return JSON.parse(value);
+      }
+      return null;
+    } catch (error) {
+      logger.error('Redis GET error:', error);
       return null;
     }
-    
-    return data.value;
-  } catch (err) {
-    logger.error('Cache get error', { key, error: err.message });
-    return null;
   }
-};
 
-/**
- * Set value in cache with TTL
- * @param {string} key - Cache key
- * @param {any} value - Value to cache
- * @param {number} ttl - Time to live in seconds
- * @returns {Promise<void>}
- */
-const set = async (key, value, ttl) => {
-  try {
-    if (useRedis && redisClient) {
-      try {
-        const stringValue = JSON.stringify(value);
-        if (ttl) {
-          await redisClient.setEx(key, ttl, stringValue);
-        } else {
-          await redisClient.set(key, stringValue);
+  // Enhanced set with TTL and error handling
+  async set(key, value, ttl = 3600) {
+    if (!this.isConnected || !this.client) {
+      logger.warn('Redis not connected, skipping cache set');
+      return false;
+    }
+
+    try {
+      const serialized = JSON.stringify(value);
+      await this.client.setEx(key, ttl, serialized);
+      return true;
+    } catch (error) {
+      logger.error('Redis SET error:', error);
+      return false;
+    }
+  }
+
+  // Delete cache entry
+  async del(key) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.del(key);
+      return true;
+    } catch (error) {
+      logger.error('Redis DEL error:', error);
+      return false;
+    }
+  }
+
+  // Delete multiple keys by pattern
+  async delPattern(pattern) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      const keys = await this.client.keys(pattern);
+      if (keys.length > 0) {
+        await this.client.del(keys);
+      }
+      return true;
+    } catch (error) {
+      logger.error('Redis DEL pattern error:', error);
+      return false;
+    }
+  }
+
+  // Cache with automatic invalidation
+  async cacheWithInvalidation(key, fetchFunction, ttl = 3600, tags = []) {
+    try {
+      // Try to get from cache first
+      let data = await this.get(key);
+      
+      if (data) {
+        return data;
+      }
+
+      // Fetch fresh data
+      data = await fetchFunction();
+      
+      if (data) {
+        // Store in cache
+        await this.set(key, data, ttl);
+        
+        // Store tags for invalidation
+        for (const tag of tags) {
+          await this.addToTag(tag, key);
         }
-        return;
-      } catch (err) {
-        logger.warn('Redis set error, falling back to in-memory cache', { key, error: err.message });
-        useRedis = false;
       }
+
+      return data;
+    } catch (error) {
+      logger.error('Cache with invalidation error:', error);
+      // Fallback to direct function call
+      return await fetchFunction();
     }
-    
-    // Fallback to in-memory cache
-    memoryCache.set(key, {
-      value,
-      expiry: ttl ? Date.now() + (ttl * 1000) : null
-    });
-  } catch (err) {
-    logger.error('Cache set error', { key, error: err.message });
   }
+
+  // Add key to tag for group invalidation
+  async addToTag(tag, key) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.sAdd(`tag:${tag}`, key);
+      return true;
+    } catch (error) {
+      logger.error('Redis add to tag error:', error);
+      return false;
+    }
+  }
+
+  // Invalidate all keys with specific tag
+  async invalidateTag(tag) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      const keys = await this.client.sMembers(`tag:${tag}`);
+      if (keys.length > 0) {
+        await this.client.del(keys);
+        await this.client.del(`tag:${tag}`);
+      }
+      return true;
+    } catch (error) {
+      logger.error('Redis invalidate tag error:', error);
+      return false;
+    }
+  }
+
+  // Session management
+  async setSession(sessionId, data, ttl = 86400) {
+    return await this.set(`session:${sessionId}`, data, ttl);
+  }
+
+  async getSession(sessionId) {
+    return await this.get(`session:${sessionId}`);
+  }
+
+  async deleteSession(sessionId) {
+    return await this.del(`session:${sessionId}`);
+  }
+
+  // Rate limiting
+  async checkRateLimit(key, limit, window) {
+    if (!this.isConnected || !this.client) {
+      return { allowed: true, remaining: limit };
+    }
+
+    try {
+      const current = await this.client.incr(key);
+      
+      if (current === 1) {
+        await this.client.expire(key, window);
+      }
+
+      const remaining = Math.max(0, limit - current);
+      const allowed = current <= limit;
+
+      return { allowed, remaining, current };
+    } catch (error) {
+      logger.error('Redis rate limit error:', error);
+      return { allowed: true, remaining: limit };
+    }
+  }
+
+  // Health check
+  async healthCheck() {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      const result = await this.client.ping();
+      return result === 'PONG';
+    } catch (error) {
+      logger.error('Redis health check error:', error);
+      return false;
+    }
+  }
+
+  // Get cache statistics
+  async getStats() {
+    if (!this.isConnected || !this.client) {
+      return null;
+    }
+
+    try {
+      const info = await this.client.info('memory');
+      const keyspace = await this.client.info('keyspace');
+      
+      return {
+        connected: this.isConnected,
+        memory: info,
+        keyspace: keyspace
+      };
+    } catch (error) {
+      logger.error('Redis stats error:', error);
+      return null;
+    }
+  }
+}
+
+// Create singleton instance
+const cacheManager = new CacheManager();
+
+// Cache key generators
+const CACHE_KEYS = {
+  USER_PROFILE: (userId) => `user:profile:${userId}`,
+  USER_SESSION: (sessionId) => `session:${sessionId}`,
+  NOTICES_LIST: (page, limit) => `notices:list:${page}:${limit}`,
+  NOTICES_PUBLIC: () => 'notices:public',
+  MEDIA_GALLERY: (category, page) => `media:${category}:${page}`,
+  MEDIA_PUBLIC: () => 'media:public',
+  TEACHERS_LIST: () => 'teachers:list',
+  ACADEMY_INFO: () => 'academy:info',
+  CONTACT_SUBMISSIONS: (page) => `contacts:${page}`,
+  ANALYTICS_DATA: (type, period) => `analytics:${type}:${period}`,
+  RATE_LIMIT: (ip, endpoint) => `rate:${ip}:${endpoint}`
 };
 
-/**
- * Delete value from cache
- * @param {string} key - Cache key
- * @returns {Promise<void>}
- */
-const del = async (key) => {
-  try {
-    if (useRedis && redisClient) {
-      try {
-        await redisClient.del(key);
-        return;
-      } catch (err) {
-        logger.warn('Redis delete error, falling back to in-memory cache', { key, error: err.message });
-        useRedis = false;
-      }
-    }
-    
-    // Fallback to in-memory cache
-    memoryCache.delete(key);
-  } catch (err) {
-    logger.error('Cache delete error', { key, error: err.message });
-  }
+// Cache TTL settings (in seconds)
+const CACHE_TTL = {
+  USER_PROFILE: 3600,      // 1 hour
+  USER_SESSION: 86400,     // 24 hours
+  NOTICES: 1800,           // 30 minutes
+  MEDIA: 3600,             // 1 hour
+  TEACHERS: 7200,          // 2 hours
+  ACADEMY_INFO: 86400,     // 24 hours
+  ANALYTICS: 900,          // 15 minutes
+  RATE_LIMIT: 3600         // 1 hour
 };
 
-/**
- * Clear all cache entries
- * @returns {Promise<void>}
- */
-const clear = async () => {
-  try {
-    if (useRedis && redisClient) {
-      try {
-        await redisClient.flushAll();
-        logger.info('🧹 Redis cache cleared');
-        return;
-      } catch (err) {
-        logger.warn('Redis clear error, falling back to in-memory cache', { error: err.message });
-        useRedis = false;
-      }
-    }
-    
-    // Fallback to in-memory cache
-    memoryCache.clear();
-    logger.info('🧹 In-memory cache cleared');
-  } catch (err) {
-    logger.error('Cache clear error', { error: err.message });
-  }
-};
-
-/**
- * Get cache statistics
- * @returns {Object} Cache stats
- */
-const stats = async () => {
-  try {
-    if (useRedis && redisClient) {
-      try {
-        const info = await redisClient.info();
-        return {
-          type: 'redis',
-          info
-        };
-      } catch (err) {
-        logger.warn('Redis stats error, falling back to in-memory cache stats', { error: err.message });
-        useRedis = false;
-      }
-    }
-    
-    // Fallback to in-memory cache stats
-    let expiredCount = 0;
-    const now = Date.now();
-    
-    for (const [key, data] of memoryCache.entries()) {
-      if (data.expiry && data.expiry < now) {
-        expiredCount++;
-      }
-    }
-    
-    return {
-      type: 'memory',
-      size: memoryCache.size,
-      expired: expiredCount,
-      active: memoryCache.size - expiredCount
-    };
-  } catch (err) {
-    logger.error('Cache stats error', { error: err.message });
-    return {
-      type: 'unknown',
-      error: err.message
-    };
-  }
+// Cache tags for invalidation
+const CACHE_TAGS = {
+  NOTICES: 'notices',
+  MEDIA: 'media',
+  USERS: 'users',
+  TEACHERS: 'teachers',
+  ACADEMY: 'academy'
 };
 
 module.exports = {
-  get,
-  set,
-  del,
-  clear,
-  stats
+  cacheManager,
+  CACHE_KEYS,
+  CACHE_TTL,
+  CACHE_TAGS
 };

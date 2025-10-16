@@ -2,18 +2,16 @@ services:
   - type: web
     name: farid-cadet-academy-backend
     env: node
-    plan: free
-    # Backend only - frontend is deployed separately on Vercel
-    buildCommand: npm install
-    startCommand: node server.js
+    plan: standard
+    runtime: node-18
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        fromService:
-          type: web
-          name: farid-cadet-academy-backend
-          property: port
+        value: 3000
       - key: JWT_SECRET
         generateValue: true
       - key: SUPABASE_URL
@@ -22,17 +20,21 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: REDIS_URL
+        sync: false
       - key: FRONTEND_URL
         value: https://farid-cadet.vercel.app
-    # Health check configuration
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGIN
+        value: https://farid-cadet.vercel.app
+    
     healthCheckPath: /api/health
-    # Auto-deploy configuration
+    healthCheckInterval: 30
+    
     autoDeploy: true
-    # Environment-specific settings
-    envSpecificConfig:
-      - environment: production
-        envVars:
-          - key: LOG_LEVEL
-            value: info
-          - key: ENABLE_CORS
-            value: true
+    
+    disk:
+      name: logs
+      mountPath: /app/logs
+      sizeGB: 1

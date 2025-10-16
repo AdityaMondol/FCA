@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" class="%sveltekit.theme%">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <!-- Enhanced meta tags for SEO and social sharing -->
+    <meta name="description" content="Farid Cadet Academy - Preparing Future Leaders for Cadet Colleges in Bangladesh" />
+    <meta name="keywords" content="cadet college, coaching, bangladesh, education, tangail" />
+    <meta name="author" content="Farid Cadet Academy" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://farid-cadet.netlify.app/" />
+    <meta property="og:title" content="Farid Cadet Academy" />
+    <meta property="og:description" content="Preparing Future Leaders for Cadet Colleges in Bangladesh" />
+    <meta property="og:image" content="%sveltekit.assets%/favicon.png" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://farid-cadet.netlify.app/" />
+    <meta property="twitter:title" content="Farid Cadet Academy" />
+    <meta property="twitter:description" content="Preparing Future Leaders for Cadet Colleges in Bangladesh" />
+    <meta property="twitter:image" content="%sveltekit.assets%/favicon.png" />
+    
+    <!-- Performance and security -->
+    <meta name="theme-color" content="#7C3AED" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Manifest for PWA -->
+    <link rel="manifest" href="%sveltekit.assets%/manifest.json" />
+    
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover" class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div style="display: contents">%sveltekit.body%</div>
+    
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="fixed top-0 left-0 w-full h-1 bg-primary-500 transform -translate-x-full transition-transform duration-300 z-50"></div>
+  </body>
+</html>

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const compression = require('compression');
 const { createClient } = require('@supabase/supabase-js');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -23,12 +24,29 @@ const {
 } = require('./utils/upload');
 const { logger, httpLogger } = require('./utils/log');
 const { validateEnv } = require('./utils/env');
+const { cacheManager } = require('./utils/cache');
+const { 
+  cacheMiddleware, 
+  rateLimitMiddleware, 
+  sessionMiddleware,
+  conditionalCacheMiddleware 
+} = require('./middleware/cache');
+const {
+  validateInput,
+  securityHeaders,
+  auditLog
+} = require('./middleware/security');
 
 // Load environment variables
 dotenv.config();
 
 // Validate environment variables
 validateEnv();
+
+// Initialize Redis cache
+cacheManager.connect().catch(err => {
+  logger.error('Failed to connect to Redis:', err);
+});
 
 const app = express();
 
@@ -59,15 +77,8 @@ app.use(helmet({
   xssFilter: true,
 }));
 
-// Add additional security headers
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  next();
-});
+// Add security headers
+app.use(securityHeaders);
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'your_supabase_url_here';
@@ -110,6 +121,18 @@ supabase
   });
 
 // Middleware
+// Compression middleware for better performance
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6,
+  threshold: 1024
+}));
+
 // CORS configuration from environment variables
 let corsOptions;
 if (process.env.CORS_ORIGIN) {
@@ -117,25 +140,38 @@ if (process.env.CORS_ORIGIN) {
   corsOptions = {
     origin: origins,
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    maxAge: 86400 // Cache preflight for 24 hours
   };
 } else {
   // Default CORS configuration
   corsOptions = {
     origin: FRONTEND_URL,
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    maxAge: 86400
   };
 }
 
 app.use(cors(corsOptions));
 
 // Body parsing middleware with security limits
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Session middleware
+app.use(sessionMiddleware);
 
 // Apply HTTP logging middleware
 app.use(httpLogger);
+
+// Input validation middleware (security check)
+app.use(validateInput);
 
 // Request sanitization middleware
 app.use((req, res, next) => {
@@ -220,14 +256,22 @@ const noticesRoutes = require('./routes/notices');
 const mediaRoutes = require('./routes/media');
 const teachersRoutes = require('./routes/teachers');
 const contactRoutes = require('./routes/contact');
+const mfaRoutes = require('./routes/mfa');
+const advancedRoutes = require('./routes/advanced');
+const futuristicRoutes = require('./routes/futuristic');
+const docsRoutes = require('./routes/docs');
 const mainRoutes = require('./routes/main');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/mfa', mfaRoutes);
 app.use('/api/notices', noticesRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/teachers', teachersRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/advanced', advancedRoutes);
+app.use('/api/futuristic', futuristicRoutes);
+app.use('/api/docs', docsRoutes);
 app.use('/api', mainRoutes);
 
 // Error handling

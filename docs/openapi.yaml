@@ -1,0 +1,465 @@
+openapi: 3.0.0
+info:
+  title: Farid Cadet Academy API
+  description: Comprehensive API documentation for Farid Cadet Academy backend
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@faridcadet.com
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.faridcadet.com
+    description: Production server
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SecurePass123!
+                name:
+                  type: string
+                  example: John Doe
+                role:
+                  type: string
+                  enum: [student, guardian, teacher]
+                  example: student
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/profile:
+    get:
+      summary: Get user profile
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update user profile
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                bio:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/notices:
+    get:
+      summary: Get all notices
+      tags:
+        - Notices
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of notices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notice'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+
+    post:
+      summary: Create a new notice (Admin only)
+      tags:
+        - Notices
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                category:
+                  type: string
+      responses:
+        '201':
+          description: Notice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - Admin access required
+
+  /api/media:
+    get:
+      summary: Get media gallery
+      tags:
+        - Media
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of media items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Media'
+                  total:
+                    type: integer
+
+    post:
+      summary: Upload media (Admin only)
+      tags:
+        - Media
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                category:
+                  type: string
+      responses:
+        '201':
+          description: Media uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '401':
+          description: Unauthorized
+
+  /api/teachers:
+    get:
+      summary: Get all teachers
+      tags:
+        - Teachers
+      responses:
+        '200':
+          description: List of teachers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Teacher'
+
+  /api/contact:
+    post:
+      summary: Submit contact form
+      tags:
+        - Contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - message
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                subject:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '201':
+          description: Contact form submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  message:
+                    type: string
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [student, guardian, teacher, admin]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Notice:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Media:
+      type: object
+      properties:
+        id:
+          type: string
+        fileName:
+          type: string
+        url:
+          type: string
+        category:
+          type: string
+        type:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Teacher:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        subject:
+          type: string
+        bio:
+          type: string
+        image:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User profile management
+  - name: Notices
+    description: Academy notices management
+  - name: Media
+    description: Media gallery management
+  - name: Teachers
+    description: Teacher information
+  - name: Contact
+    description: Contact form submission
