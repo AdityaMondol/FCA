@@ -42,9 +42,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "framer-motion": "^10.16.16",
     "lucide-svelte": "^0.294.0",
-    "svelte-french-toast": "^1.2.0",
-    "svelte-motion": "^0.11.5"
+    "svelte-french-toast": "^1.2.0"
   }
 }
