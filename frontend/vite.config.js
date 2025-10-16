@@ -19,14 +19,7 @@ export default defineConfig({
   build: {
     target: 'esnext',
     sourcemap: false,
-    minify: 'terser',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          ui: ['lucide-svelte', 'svelte-french-toast']
-        }
-      }
-    }
+    minify: 'terser'
   },
   
   // Optimization settings
