@@ -1,309 +1,167 @@
-<div align="center">
-  <img src="frontend/public/favicon.png" alt="Farid Cadet Academy Logo" width="120" height="120">
-  
-  # Farid Cadet Academy
-  
-  **Preparing Future Leaders for Cadet Colleges in Bangladesh**
-  
-  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-  [![Node.js](https://img.shields.io/badge/Node.js-16%2B-green)](https://nodejs.org/)
-  [![Svelte](https://img.shields.io/badge/Svelte-4-orange)](https://svelte.dev/)
-  [![Supabase](https://img.shields.io/badge/Supabase-Cloud-blue)](https://supabase.com/)
-  
-  A production-ready full-stack web application built with **Svelte**, **TailwindCSS**, **Node.js/Express**, and **Supabase**.
-  
-  [Live Demo](https://farid-cadet.Vercel.app) • 
-  [Documentation](#documentation) • 
-  [Features](#features) • 
-  [Installation](#installation)
-</div>
+# Farid Cadet Academy Web Application
 
-## 🌟 About Farid Cadet Academy
+A modern, multilingual web application for Farid Cadet Academy - a cadet college preparation institute in Tangail, Bangladesh.
 
-Farid Cadet Academy is a premier coaching institution in Tangail, Bangladesh, dedicated to preparing students for competitive entrance examinations into cadet colleges. With a proven track record of success, we provide comprehensive coaching in:
+## Features
 
-- **Bengali (Bangla)**
-- **English**
-- **Mathematics**
-- **General Knowledge**
+- **Multilingual Support**: Bangla and English with easy language switching
+- **Theme System**: Light, dark, and system theme options
+- **Authentication**: Secure user registration and login with role-based access
+- **Teacher Management**: Special teacher verification system with admin approval
+- **Content Management**: Notices, media gallery, and academy information
+- **Responsive Design**: Works perfectly on desktop, tablet, and mobile devices
+- **Modern UI**: Built with ShadCN-Svelte components and TailwindCSS
 
-Our academy offers multiple learning options including day coaching, night coaching, and residential programs to accommodate diverse student needs.
-
-## ✨ Key Features
-
-### 🌐 Bilingual & Accessible
-- **Complete Bangla and English language support** with seamless switching
-- **Responsive design** optimized for all devices (mobile, tablet, desktop)
-- **Dark/light theme toggling** with smooth transitions
-
-### 🔐 Secure Authentication
-- **JWT-based authentication** with Supabase Auth
-- **Role-based access control** (Student, Guardian, Teacher)
-- **Password encryption** with bcrypt
-- **Email verification** for new registrations
-
-### 🎨 Premium User Experience
-- **Modern, impressive design** with red and yellow branding
-- **Smooth animations** and transitions
-- **High-performance loading** with Vite build tool
-- **Optimized assets** for fast delivery
-
-### 🛠️ Comprehensive Admin Panel
-- **Notice management** (create, update, delete)
-- **Media gallery** (image/video upload with Supabase Storage)
-- **Contact form submissions** management
-- **Teacher profile management**
-- **Role assignment** and user management
-
-## 🚀 Technologies Used
+## Tech Stack
 
 ### Frontend
-| Technology | Purpose |
-|------------|---------|
-| **Svelte 4** | Reactive JavaScript framework |
-| **TailwindCSS 3** | Utility-first CSS framework |
-| **Svelte Routing** | Client-side routing |
-| **Vite** | Next-generation build tool |
+- **SvelteKit** - Modern web framework
+- **TypeScript** - Type-safe development
+- **TailwindCSS** - Utility-first CSS framework
+- **ShadCN-Svelte** - Beautiful UI components
+- **Lucide Icons** - Consistent iconography
+- **Motion One** - Smooth animations
+- **svelte-i18n** - Internationalization
 
 ### Backend
-| Technology | Purpose |
-|------------|---------|
-| **Node.js** | JavaScript runtime |
-| **Express.js** | Web application framework |
-| **Supabase** | PostgreSQL database and storage |
-| **JWT** | Secure authentication |
-| **Bcrypt** | Password hashing |
-| **Multer** | File upload handling |
+- **NestJS** - Scalable Node.js framework
+- **Fastify** - High-performance web server
+- **TypeScript** - Type-safe development
+- **JWT** - Secure authentication
+- **Class Validator** - Input validation
 
-## 📁 Project Structure
+### Database & Services
+- **Supabase** - PostgreSQL database with auth and storage
+- **Row Level Security** - Database-level security policies
+
+## Project Structure
 
 ```
-FCA/
-├── frontend/                 # Svelte frontend application
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── pages/           # Page components
-│   │   ├── stores/          # Svelte stores (theme, language, auth)
-│   │   ├── utils/           # Frontend utilities
-│   │   ├── App.svelte       # Main app component
-│   │   ├── main.js          # Entry point
-│   │   └── app.css          # Global styles
-│   ├── public/              # Static assets
-│   ├── dist/                # Production build
-│   └── [config files]       # Vite, Tailwind, etc.
-├── utils/                   # Backend utilities
-├── db/                      # Database schemas and scripts
-├── server.js                # Express server with API routes
-├── package.json             # Backend dependencies
-└── [config files]           # Environment, deployment configs
+├── frontend/          # SvelteKit frontend application
+├── backend/           # NestJS backend API
+├── database/          # Database schema and migrations
+└── docs/             # Documentation
 ```
 
-## 🛠️ Installation & Setup
+## Getting Started
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js 18+
 - npm or yarn
 - Supabase account
 
-### Quick Start
+### Setup
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/farid-cadet-academy.git
-cd farid-cadet-academy
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd fca-web-app
+   ```
 
-# Install backend dependencies
-npm install
+2. **Set up Supabase**
+   - Create a new Supabase project
+   - Run the SQL scripts in `database/` folder
+   - Get your project URL and API keys
 
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+3. **Backend Setup**
+   ```bash
+   cd backend
+   npm install
+   cp .env.example .env
+   # Edit .env with your Supabase credentials
+   npm run start:dev
+   ```
 
-# Set up environment variables (see below)
+4. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   # Update Supabase config in src/lib/supabase.ts
+   npm run dev
+   ```
 
-# Run in development mode
-npm run dev        # Backend server
-npm run frontend   # Frontend development server
-```
+## Deployment
 
-### Environment Configuration
+### Backend (Render)
+1. Connect your GitHub repository to Render
+2. Create a new Web Service
+3. Set environment variables from `.env.example`
+4. Deploy using the provided `render.yaml`
 
-Create a `.env` file in the root directory:
+### Frontend (Vercel)
+1. Connect your GitHub repository to Vercel
+2. Set framework preset to SvelteKit
+3. Update API URLs in `vercel.json`
+4. Deploy
 
-```env
-# Supabase Configuration
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+### Database (Supabase)
+1. Run `database/schema.sql` in SQL Editor
+2. Run `database/rls-policies.sql` for security
+3. Optionally run `database/seed-data.sql` for sample data
 
-# JWT Secret (change this to a random string)
-JWT_SECRET=your_random_secret_key_for_jwt
+## Key Features
 
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-```
+### Authentication System
+- User registration with role selection (student, guardian, teacher)
+- Special teacher verification with code "FCA2025"
+- JWT-based authentication with refresh tokens
+- Role-based access control
 
-### Database Setup
+### Multilingual Support
+- Complete Bangla and English translations
+- Language preference persistence
+- RTL support for Bangla text where needed
 
-1. Create a new project in [Supabase](https://supabase.com)
-2. Go to SQL Editor and execute the scripts in `db/schema.sql`
-3. Create storage buckets:
-   - `media` (public access)
-   - `profile-photos` (public access)
-4. Configure Row Level Security (RLS) policies
+### Content Management
+- Notice board with language filtering
+- Media gallery with image and video support
+- Teacher profiles with verification system
+- Contact form with admin management
 
-### Build for Production
+### Security Features
+- Row Level Security (RLS) policies
+- Input validation and sanitization
+- Rate limiting on API endpoints
+- Secure file upload with type validation
 
-```bash
-# Build frontend
-cd frontend
-npm run build
-cd ..
+## API Endpoints
 
-# Start production server
-npm start
-```
+### Authentication
+- `POST /auth/register` - User registration
+- `POST /auth/login` - User login
+- `GET /auth/profile` - Get user profile
 
-## 🌐 Pages & Features
+### Teachers
+- `GET /teachers` - List verified teachers
+- `POST /teachers/apply` - Apply as teacher
+- `PUT /teachers/:id/verify` - Verify teacher (admin only)
 
-| Page | Features |
-|------|----------|
-| **Home** | Hero section, stats, achievements, call-to-action |
-| **About Us** | Mission, vision, and academy information |
-| **Facilities** | Day/night coaching, residential programs |
-| **Teachers** | Faculty profiles and qualifications |
-| **Media Gallery** | Photos and videos from academy events |
-| **Notices** | Latest announcements and important notices |
-| **Contact** | Contact form and location information |
-| **Dashboard** | User profile management |
-| **Admin Panel** | Content management system |
+### Notices
+- `GET /notices` - List published notices
+- `POST /notices` - Create notice (admin/teacher)
+- `PUT /notices/:id` - Update notice
 
-## 🔌 API Endpoints
+### Media
+- `GET /media` - List public media
+- `POST /media/upload` - Upload media file
+- `DELETE /media/:id` - Delete media
 
-### Public Routes
-- `GET /api/academy-info` - Get academy information
-- `GET /api/notices` - Get all notices (with pagination)
-- `GET /api/media` - Get all media items (with pagination)
-- `GET /api/teachers` - Get all teachers
-- `POST /api/contact` - Submit contact form
+### Contact
+- `POST /contact/submit` - Submit contact form
+- `GET /contact/info` - Get academy information
 
-### Authentication Routes
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/logout` - User logout
+## Contributing
 
-### Protected Routes
-- `GET /api/profile` - Get user profile
-- `PUT /api/profile` - Update user profile
-- `PUT /api/change-role` - Change user role
-- `DELETE /api/delete-account` - Delete user account
-
-### Admin Routes
-- `POST /api/notices` - Create notice
-- `DELETE /api/notices/:id` - Delete notice
-- `POST /api/media` - Upload media
-- `DELETE /api/media/:id` - Delete media
-- `GET /api/contacts` - View contact submissions
-
-## 🎨 Customization
-
-### Colors
-Edit `frontend/tailwind.config.js`:
-```javascript
-colors: {
-  primary: '#DC2626',  // Red
-  secondary: '#FBBF24' // Yellow
-}
-```
-
-### Translations
-Edit `frontend/src/stores/languageStore.js` to modify or add translations.
-
-### Content
-Update the translation files and page components in `frontend/src/pages/`.
-
-## 🔒 Security Features
-
-- **Password encryption** using bcrypt
-- **JWT tokens** for secure authentication
-- **Row Level Security (RLS)** on Supabase tables
-- **Input validation** and sanitization
-- **Rate limiting** for authentication endpoints
-- **Protected admin routes**
-- **CORS configuration** for security
-- **File type validation** for uploads
-
-## ☁️ Deployment
-
-### Backend (Node.js)
-Deploy to any Node.js hosting service:
-```bash
-# Render.com
-# Railway.app
-# Heroku
-# DigitalOcean App Platform
-```
-
-### Frontend
-The frontend is built into the `dist` folder and can be deployed to:
-```bash
-# Vercel
-# Vercel
-# GitHub Pages
-# Any static hosting service
-```
-
-### Environment Variables
-Ensure all environment variables are set in your hosting platform.
-
-## 👨‍🏫 Admin Panel
-
-To create an admin user:
-1. Hash a password using bcrypt
-2. Insert directly into Supabase `users` table with role='teacher' or 'admin'
-3. Or use the registration form with a valid teacher verification code
-
-Teacher verification codes can be managed in the `teacher_verification_codes` table.
-
-## 📞 Contact Information
-
-**Farid Cadet Academy**
-- 📍 Walton More, Mymensingh road, Tangail Sadar, Tangail
-- 📞 01715-000090
-- 📞 01928-268993
-- 📞 01674-455000
-
-## 🤝 Support & Contributing
-
-For technical issues or questions, please [open an issue](https://github.com/yourusername/farid-cadet-academy/issues).
-
-### Contributing
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a pull request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
-## 🙏 Acknowledgments
+## Support
 
-- Thanks to all contributors who have helped with this project
-- Special thanks to the Farid Cadet Academy team for their support
-- Built with ❤️ using modern web technologies
-
----
-
-<div align="center">
-  
-  **Made with ❤️ for Farid Cadet Academy**
-  
-  [![GitHub](https://img.shields.io/badge/GitHub-Repository-black)](https://github.com/yourusername/farid-cadet-academy)
-  [![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-blue)](https://farid-cadet.Vercel.app)
-  
-</div>
+For support, email info@faridcadetacademy.com or contact the development team.

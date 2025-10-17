@@ -1,8 +1,15 @@
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import adapter from '@sveltejs/adapter-auto';
+import { vitePreprocess } from '@sveltejs/kit/vite';
 
-/** @type {import('@sveltejs/vite-plugin-svelte').Config} */
+/** @type {import('@sveltejs/kit').Config} */
 const config = {
-  preprocess: vitePreprocess()
+	preprocess: vitePreprocess(),
+	kit: {
+		adapter: adapter(),
+		prerender: {
+			entries: ['/', '/teachers', '/facilities', '/notices', '/media', '/contact']
+		}
+	}
 };
 
 export default config;
