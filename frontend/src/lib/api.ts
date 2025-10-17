@@ -1,60 +1,59 @@
-import { browser } from '$app/environment';
-
-const API_BASE_URL = browser 
-  ? 'https://fca-tgqs.onrender.com' // Replace with actual Render URL
-  : 'http://localhost:3000';
-
-export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const token = browser ? localStorage.getItem('token') : null;
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
-  };
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    throw new Error(`API call failed: ${response.statusText}`);
-  }
-
-  return response.json();
-}
+// Simple API helper for FCA app
+const API_BASE_URL = 'https://your-backend-url.render.com'; // Replace with actual Render URL
 
 export const api = {
-  // Auth
-  register: (data: any) => apiCall('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
-  
-  login: (data: any) => apiCall('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
-  
-  getProfile: () => apiCall('/auth/me'),
-  
-  // Teachers
-  getTeachers: () => apiCall('/teachers'),
-  
-  // Notices
-  getNotices: (language?: string) => apiCall(`/notices${language ? `?language=${language}` : ''}`),
-  
-  // Media
-  getMedia: () => apiCall('/media'),
-  
-  // Contact
-  submitContact: (data: any) => apiCall('/contact/submit', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
-  
-  getAcademyInfo: () => apiCall('/contact/info'),
+  async getTeachers() {
+    const response = await fetch(`${API_BASE_URL}/teachers`);
+    if (!response.ok) throw new Error('Failed to fetch teachers');
+    return response.json();
+  },
+
+  async getNotices(language?: string) {
+    const url = language ? `${API_BASE_URL}/notices?language=${language}` : `${API_BASE_URL}/notices`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch notices');
+    return response.json();
+  },
+
+  async getMedia() {
+    const response = await fetch(`${API_BASE_URL}/media`);
+    if (!response.ok) throw new Error('Failed to fetch media');
+    return response.json();
+  },
+
+  async submitContact(data: any) {
+    const response = await fetch(`${API_BASE_URL}/contact/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to submit contact form');
+    return response.json();
+  },
+
+  async register(data: any) {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Registration failed');
+    }
+    return response.json();
+  },
+
+  async login(data: any) {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Login failed');
+    }
+    return response.json();
+  }
 };

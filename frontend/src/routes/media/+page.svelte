@@ -118,7 +118,11 @@
 
 <!-- Lightbox Modal -->
 {#if showLightbox && selectedMedia}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" role="dialog" on:click={closeLightbox} on:keydown={(e) => e.key === 'Escape' && closeLightbox()}>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <div class="max-w-4xl max-h-full bg-background rounded-lg overflow-hidden" role="document" on:click|stopPropagation>
       <div class="p-4 border-b">
         <div class="flex items-center justify-between">
