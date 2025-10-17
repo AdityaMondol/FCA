@@ -2,11 +2,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".svelte-kit/output",
   "framework": null,
-  "functions": {
-    "src/routes/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
