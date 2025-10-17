@@ -6,6 +6,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Bell, Calendar } from 'lucide-svelte';
   import { formatDate, formatDateBangla, truncateText } from '$lib/utils';
+  import { api } from '$lib/api';
 
   let notices = [];
   let loading = true;
@@ -20,12 +21,7 @@
 
   async function loadNotices() {
     try {
-      const response = await fetch(`/api/notices?language=${locale}`);
-      if (response.ok) {
-        notices = await response.json();
-      } else {
-        error = 'Failed to load notices';
-      }
+      notices = await api.getNotices(locale);
     } catch (err) {
       error = 'Failed to load notices';
     } finally {

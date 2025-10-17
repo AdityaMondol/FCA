@@ -5,6 +5,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Image, Video, Calendar } from 'lucide-svelte';
   import { formatDate } from '$lib/utils';
+  import { api } from '$lib/api';
 
   let media = [];
   let loading = true;
@@ -14,12 +15,7 @@
 
   onMount(async () => {
     try {
-      const response = await fetch('/api/media');
-      if (response.ok) {
-        media = await response.json();
-      } else {
-        error = 'Failed to load media';
-      }
+      media = await api.getMedia();
     } catch (err) {
       error = 'Failed to load media';
     } finally {
@@ -122,8 +118,8 @@
 
 <!-- Lightbox Modal -->
 {#if showLightbox && selectedMedia}
-  <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" on:click={closeLightbox}>
-    <div class="max-w-4xl max-h-full bg-background rounded-lg overflow-hidden" on:click|stopPropagation>
+  <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" role="dialog" on:click={closeLightbox} on:keydown={(e) => e.key === 'Escape' && closeLightbox()}>
+    <div class="max-w-4xl max-h-full bg-background rounded-lg overflow-hidden" role="document" on:click|stopPropagation>
       <div class="p-4 border-b">
         <div class="flex items-center justify-between">
           <div>
@@ -150,6 +146,7 @@
             controls
             class="max-w-full max-h-[70vh] mx-auto"
           >
+            <track kind="captions" src="" label="No captions available" />
             Your browser does not support the video tag.
           </video>
         {/if}

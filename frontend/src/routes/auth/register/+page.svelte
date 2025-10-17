@@ -4,6 +4,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { goto } from '$app/navigation';
+  import { api } from '$lib/api';
   
   let form = {
     firstName: '',
@@ -30,20 +31,9 @@
     error = '';
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        success = data.message || $_('auth.registerSuccess');
-        setTimeout(() => goto('/auth/login'), 2000);
-      } else {
-        error = data.message || $_('auth.registerError');
-      }
+      const data = await api.register(form);
+      success = data.message || $_('auth.registerSuccess');
+      setTimeout(() => goto('/auth/login'), 2000);
     } catch (err) {
       error = $_('auth.registerError');
     } finally {

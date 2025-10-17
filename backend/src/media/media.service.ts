@@ -42,8 +42,8 @@ export class MediaService {
       fileSize: media.file_size,
       createdAt: media.created_at,
       uploader: media.profiles ? {
-        firstName: media.profiles.first_name,
-        lastName: media.profiles.last_name,
+        firstName: (media.profiles as any)?.first_name,
+        lastName: (media.profiles as any)?.last_name,
       } : null,
     }));
   }
@@ -85,34 +85,30 @@ export class MediaService {
       isPublic: data.is_public,
       createdAt: data.created_at,
       uploader: data.profiles ? {
-        firstName: data.profiles.first_name,
-        lastName: data.profiles.last_name,
+        firstName: (data.profiles as any)?.first_name,
+        lastName: (data.profiles as any)?.last_name,
       } : null,
     };
   }
 
-  async uploadMedia(uploaderId: string, uploadMediaDto: UploadMediaDto, file: Express.Multer.File) {
+  async uploadMedia(uploaderId: string, uploadMediaDto: UploadMediaDto, file: any) {
     const supabase = this.supabaseService.getClient();
 
-    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
     if (!allowedTypes.includes(file.mimetype)) {
       throw new BadRequestException('Invalid file type. Only images and videos are allowed.');
     }
 
-    // Validate file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       throw new BadRequestException('File size too large. Maximum size is 10MB.');
     }
 
-    // Generate unique filename
     const fileExtension = file.originalname.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`;
     const filePath = `media/${fileName}`;
 
     try {
-      // Upload file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('media')
         .upload(filePath, file.buffer, {
@@ -124,7 +120,6 @@ export class MediaService {
         throw new BadRequestException(`File upload failed: ${uploadError.message}`);
       }
 
-      // Save media record to database
       const { data: mediaData, error: dbError } = await supabase
         .from('media')
         .insert({
@@ -140,7 +135,6 @@ export class MediaService {
         .single();
 
       if (dbError) {
-        // Clean up uploaded file if database insert fails
         await supabase.storage.from('media').remove([uploadData.path]);
         throw new BadRequestException('Failed to save media record');
       }
@@ -170,7 +164,6 @@ export class MediaService {
   async updateMedia(mediaId: string, userId: string, updateMediaDto: UpdateMediaDto) {
     const supabase = this.supabaseService.getClient();
 
-    // Check if media exists and user has permission to update
     const { data: existingMedia } = await supabase
       .from('media')
       .select('uploaded_by')
@@ -181,7 +174,6 @@ export class MediaService {
       throw new NotFoundException('Media not found');
     }
 
-    // Check if user is the uploader or an admin
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -219,7 +211,6 @@ export class MediaService {
   async deleteMedia(mediaId: string, userId: string) {
     const supabase = this.supabaseService.getClient();
 
-    // Check if media exists and user has permission to delete
     const { data: existingMedia } = await supabase
       .from('media')
       .select('uploaded_by, file_path')
@@ -230,7 +221,6 @@ export class MediaService {
       throw new NotFoundException('Media not found');
     }
 
-    // Check if user is the uploader or an admin
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -244,7 +234,6 @@ export class MediaService {
       throw new ForbiddenException('You can only delete your own media');
     }
 
-    // Delete from database first
     const { error: dbError } = await supabase
       .from('media')
       .delete()
@@ -254,14 +243,12 @@ export class MediaService {
       throw new BadRequestException('Failed to delete media record');
     }
 
-    // Delete file from storage
     const { error: storageError } = await supabase.storage
       .from('media')
       .remove([existingMedia.file_path]);
 
     if (storageError) {
       console.error('Failed to delete file from storage:', storageError);
-      // Don't throw error here as the database record is already deleted
     }
 
     return { message: 'Media deleted successfully' };
@@ -329,8 +316,8 @@ export class MediaService {
       isPublic: media.is_public,
       createdAt: media.created_at,
       uploader: media.profiles ? {
-        firstName: media.profiles.first_name,
-        lastName: media.profiles.last_name,
+        firstName: (media.profiles as any)?.first_name,
+        lastName: (media.profiles as any)?.last_name,
       } : null,
     }));
   }

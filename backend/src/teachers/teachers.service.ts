@@ -207,7 +207,7 @@ export class TeachersService {
     await supabase
       .from('profiles')
       .update({ is_approved: true })
-      .eq('id', data.profiles.id);
+      .eq('id', (data.profiles as any).id);
 
     return {
       message: 'Teacher verified successfully',

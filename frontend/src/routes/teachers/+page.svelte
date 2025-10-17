@@ -4,6 +4,7 @@
   import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Button } from '$lib/components/ui/button';
   import { User, BookOpen } from 'lucide-svelte';
+  import { api } from '$lib/api';
 
   let teachers = [];
   let loading = true;
@@ -11,12 +12,7 @@
 
   onMount(async () => {
     try {
-      const response = await fetch('/api/teachers');
-      if (response.ok) {
-        teachers = await response.json();
-      } else {
-        error = 'Failed to load teachers';
-      }
+      teachers = await api.getTeachers();
     } catch (err) {
       error = 'Failed to load teachers';
     } finally {

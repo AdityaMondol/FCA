@@ -46,8 +46,8 @@ export class NoticesService {
       createdAt: notice.created_at,
       updatedAt: notice.updated_at,
       author: notice.profiles ? {
-        firstName: notice.profiles.first_name,
-        lastName: notice.profiles.last_name,
+        firstName: (notice.profiles as any).first_name,
+        lastName: (notice.profiles as any).last_name,
       } : null,
     }));
   }
@@ -87,8 +87,8 @@ export class NoticesService {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       author: data.profiles ? {
-        firstName: data.profiles.first_name,
-        lastName: data.profiles.last_name,
+        firstName: (data.profiles as any).first_name,
+        lastName: (data.profiles as any).last_name,
       } : null,
     };
   }
@@ -96,7 +96,6 @@ export class NoticesService {
   async createNotice(authorId: string, createNoticeDto: CreateNoticeDto) {
     const supabase = this.supabaseService.getClient();
 
-    // Verify author has permission (admin or teacher)
     const { data: authorProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -132,7 +131,6 @@ export class NoticesService {
   async updateNotice(noticeId: string, authorId: string, updateNoticeDto: UpdateNoticeDto) {
     const supabase = this.supabaseService.getClient();
 
-    // Check if notice exists and user has permission to update
     const { data: existingNotice } = await supabase
       .from('notices')
       .select('author_id, profiles!notices_author_id_fkey(role)')
@@ -143,7 +141,6 @@ export class NoticesService {
       throw new NotFoundException('Notice not found');
     }
 
-    // Check if user is the author or an admin
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -182,7 +179,6 @@ export class NoticesService {
   async deleteNotice(noticeId: string, authorId: string) {
     const supabase = this.supabaseService.getClient();
 
-    // Check if notice exists and user has permission to delete
     const { data: existingNotice } = await supabase
       .from('notices')
       .select('author_id')
@@ -193,7 +189,6 @@ export class NoticesService {
       throw new NotFoundException('Notice not found');
     }
 
-    // Check if user is the author or an admin
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -278,8 +273,8 @@ export class NoticesService {
       createdAt: notice.created_at,
       updatedAt: notice.updated_at,
       author: notice.profiles ? {
-        firstName: notice.profiles.first_name,
-        lastName: notice.profiles.last_name,
+        firstName: (notice.profiles as any).first_name,
+        lastName: (notice.profiles as any).last_name,
       } : null,
     }));
   }

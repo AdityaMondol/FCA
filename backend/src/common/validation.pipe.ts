@@ -8,7 +8,7 @@ export class ValidationPipe extends NestValidationPipe {
       forbidNonWhitelisted: true,
       transform: true,
       exceptionFactory: (errors: ValidationError[]) => {
-        const messages = this.flattenValidationErrors(errors);
+        const messages = this.flattenErrors(errors);
         return new BadRequestException({
           message: 'Validation failed',
           errors: messages,
@@ -17,7 +17,7 @@ export class ValidationPipe extends NestValidationPipe {
     });
   }
 
-  private flattenValidationErrors(errors: ValidationError[]): string[] {
+  private flattenErrors(errors: ValidationError[]): string[] {
     const messages: string[] = [];
     
     for (const error of errors) {
@@ -26,7 +26,7 @@ export class ValidationPipe extends NestValidationPipe {
       }
       
       if (error.children && error.children.length > 0) {
-        messages.push(...this.flattenValidationErrors(error.children));
+        messages.push(...this.flattenErrors(error.children));
       }
     }
     

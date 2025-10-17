@@ -4,6 +4,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Phone, Mail, MapPin, Clock } from 'lucide-svelte';
+  import { api } from '$lib/api';
   
   let form = {
     name: '',
@@ -23,20 +24,9 @@
     success = '';
 
     try {
-      const response = await fetch('/api/contact/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        success = data.message || $_('contact.success');
-        form = { name: '', email: '', phone: '', subject: '', message: '' };
-      } else {
-        error = data.message || $_('contact.error');
-      }
+      const data = await api.submitContact(form);
+      success = data.message || $_('contact.success');
+      form = { name: '', email: '', phone: '', subject: '', message: '' };
     } catch (err) {
       error = $_('contact.error');
     } finally {
@@ -194,4 +184,4 @@
       </Card>
     </div>
   </div>
-</div></script>
+</div>

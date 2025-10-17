@@ -182,7 +182,7 @@ export class AuthService {
           email: authData.user.email,
           profile: profileData,
         },
-        message: `Welcome back, ${profileData.first_name}!`,
+        message: `Welcome back, ${(profileData as any).first_name}!`,
       };
 
     } catch (error) {
