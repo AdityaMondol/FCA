@@ -1,11 +1,16 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "build",
-  "framework": "sveltekit",
+  "outputDirectory": ".svelte-kit/output",
+  "framework": null,
+  "functions": {
+    "src/routes/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://your-backend-url.render.com/$1"
+      "destination": "https://fca-tgqs.onrender.com/$1"
     }
   ]
 }
